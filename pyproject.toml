@@ -8,12 +8,21 @@ dependencies = [
     "sqlalchemy",
     "langchain",
     "langchain-community",
+    "langchain-ollama",
     "langchain-chroma",
     "langchain-huggingface",
+    "langchain-google-genai",
+    "langgraph",
     "sentence-transformers",
     "pydantic>=2.0",
     "python-dotenv",
-    "torch"
+    "torch",
+    "fastapi",
+    "uvicorn[standard]",
+    "langgraph-checkpoint-sqlite>=3.1.0",
+    "bcrypt",
+    "PyJWT",
+    "email-validator",
 ]
 
 

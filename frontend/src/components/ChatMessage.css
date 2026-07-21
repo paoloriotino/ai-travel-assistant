@@ -1,0 +1,206 @@
+/* ═══════════════════════════════════════════════════════
+   ChatMessage — Singola bolla di chat
+   ═══════════════════════════════════════════════════════ */
+
+.chat-message {
+  display: flex;
+  gap: var(--space-3);
+  max-width: 95%;
+  width: 100%;
+  animation: message-enter 0.35s var(--transition-smooth) both;
+}
+
+.chat-message--user {
+  flex-direction: row-reverse;
+  align-self: flex-end;
+}
+
+.chat-message--assistant {
+  align-self: flex-start;
+}
+
+/* Avatar */
+.chat-message__avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  flex-shrink: 0;
+  margin-top: var(--space-1);
+}
+
+.chat-message--user .chat-message__avatar {
+  background: rgba(240, 165, 0, 0.15);
+  color: var(--color-golden-hour);
+  font-family: var(--font-display);
+}
+
+.chat-message--assistant .chat-message__avatar {
+  background: rgba(30, 58, 95, 0.4);
+  color: var(--color-golden-hour);
+  font-size: var(--text-base);
+}
+
+/* Bolla del messaggio */
+.chat-message__bubble {
+  padding: var(--space-3) var(--space-4);
+  line-height: var(--leading-relaxed);
+  font-size: var(--text-sm);
+  position: relative;
+}
+
+.chat-message--user .chat-message__bubble {
+  background: var(--color-horizon);
+  border-radius: var(--radius-md) var(--radius-xs) var(--radius-md) var(--radius-md);
+  color: var(--color-cloud);
+}
+
+.chat-message--assistant .chat-message__bubble {
+  background: var(--color-surface);
+  border: 1px solid rgba(30, 58, 95, 0.5);
+  border-radius: var(--radius-xs) var(--radius-md) var(--radius-md) var(--radius-md);
+  color: var(--color-cloud);
+}
+
+/* Markdown content styling */
+.chat-message__content p {
+  margin-bottom: var(--space-2);
+}
+
+.chat-message__content p:last-child {
+  margin-bottom: 0;
+}
+
+.chat-message__content strong {
+  color: var(--color-golden-hour);
+  font-weight: 600;
+}
+
+.chat-message__content ul,
+.chat-message__content ol {
+  padding-left: var(--space-5);
+  margin-bottom: var(--space-2);
+}
+
+.chat-message__content li {
+  margin-bottom: var(--space-1);
+}
+
+.chat-message__content code {
+  background: rgba(11, 18, 33, 0.6);
+  padding: 0.1em 0.35em;
+  border-radius: var(--radius-xs);
+  font-size: 0.9em;
+}
+
+.chat-message__content pre {
+  background: rgba(11, 18, 33, 0.6);
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  overflow-x: auto;
+  margin-bottom: var(--space-2);
+}
+
+.chat-message__content pre code {
+  background: none;
+  padding: 0;
+}
+
+/* Timestamp */
+.chat-message__time {
+  font-size: var(--text-xs);
+  color: var(--color-mist);
+  margin-top: var(--space-1);
+  opacity: 0.7;
+}
+
+.chat-message--user .chat-message__time {
+  text-align: right;
+}
+
+/* Animazione di entrata */
+@keyframes message-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-message {
+    animation: none;
+  }
+}
+
+/* Responsive */
+@media (min-width: 768px) {
+  .chat-message {
+    max-width: 92%;
+  }
+
+  .chat-message__bubble {
+    font-size: var(--text-base);
+  }
+}
+
+/* ── Card Itinerario Strutturato ────────────────────────── */
+.itinerary-card {
+  margin-top: var(--space-3);
+  padding: var(--space-3);
+  background: var(--color-deep-ocean);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.itinerary-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-2);
+  border-bottom: 1px solid var(--color-border);
+  padding-bottom: var(--space-2);
+}
+
+.itinerary-card__header h4 {
+  margin: 0;
+  color: var(--color-golden-hour);
+  font-family: var(--font-display);
+}
+
+.itinerary-card__badge {
+  background: var(--color-golden-hour);
+  color: var(--color-midnight);
+  font-weight: 700;
+  padding: 0.2rem 0.5rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
+}
+
+.itinerary-card__item {
+  font-size: 0.88rem;
+  margin-bottom: var(--space-2);
+}
+
+.itinerary-card__plan {
+  margin-top: var(--space-3);
+}
+
+.itinerary-card__plan h5 {
+  margin: 0 0 var(--space-2) 0;
+  color: var(--color-cloud);
+}
+
+.itinerary-card__day {
+  margin-bottom: var(--space-2);
+  padding-left: var(--space-2);
+  border-left: 2px solid var(--color-golden-hour);
+}
+

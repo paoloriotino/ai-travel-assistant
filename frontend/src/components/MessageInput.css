@@ -1,0 +1,91 @@
+/* ═══════════════════════════════════════════════════════
+   MessageInput — Area di input della chat
+   ═══════════════════════════════════════════════════════ */
+
+.message-input {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 0.5rem 0.6rem 0.5rem 1.25rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  transition: all var(--transition-base);
+  margin: var(--space-3) var(--space-4) var(--space-4);
+  box-shadow: var(--shadow-sm);
+}
+
+.message-input:focus-within {
+  border-color: var(--color-golden-hour);
+  box-shadow: var(--shadow-glow), 0 0 0 2px rgba(240, 165, 0, 0.15);
+}
+
+.message-input__textarea {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--color-text);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  line-height: 1.4;
+  resize: none;
+  min-height: 24px;
+  max-height: 120px;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+
+.message-input__textarea::placeholder {
+  color: var(--color-mist);
+}
+
+.message-input__send {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-full);
+  border: none;
+  background: var(--color-golden-hour);
+  color: var(--color-midnight);
+  font-size: var(--text-md);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all var(--transition-base);
+  box-shadow: 0 2px 8px rgba(240, 165, 0, 0.25);
+}
+
+.message-input__send:hover:not(:disabled) {
+  background: #f5b316;
+  transform: scale(1.08);
+  box-shadow: 0 4px 14px rgba(240, 165, 0, 0.4);
+}
+
+.message-input__send:active:not(:disabled) {
+  transform: scale(0.94);
+}
+
+.message-input__send:disabled {
+  background: rgba(30, 58, 95, 0.5);
+  color: var(--color-mist);
+  cursor: not-allowed;
+  opacity: 0.5;
+  box-shadow: none;
+}
+
+@media (min-width: 768px) {
+  .message-input {
+    margin: var(--space-3) var(--space-6) var(--space-5);
+  }
+
+  .message-input__textarea {
+    font-size: var(--text-base);
+  }
+
+  .message-input__send {
+    width: 42px;
+    height: 42px;
+  }
+}

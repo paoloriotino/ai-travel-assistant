@@ -1,99 +1,159 @@
 # AI Travel Assistant 🌍✈️
 
-Assistente virtuale conversazionale intelligente per il settore Travel & Experiences, in grado di comprendere le esigenze dell'utente, generare itinerari personalizzati completi e gestire le prenotazioni.
+Assistente virtuale conversazionale intelligente per il settore **Travel & Experiences**, in grado di comprendere le esigenze dell'utente, generare itinerari personalizzati completi in tempo reale e gestire le prenotazioni con approvazione umana (Human-in-the-Loop).
 
-Questa repository è strutturata con una netta separazione tra:
-*   `backend/`: Server in Python (FastAPI/LangChain/SQLite/ChromaDB).
-*   `frontend/`: Interfaccia utente (React/Vite o HTML/CSS/JS moderno).
+---
+
+## 🏗️ Architettura del Sistema
+
+Repository Fullstack con netta separazione tra backend e frontend:
+
+```
+ai-travel-assistant/
+├── backend/          # Server Python (FastAPI, LangChain/LangGraph, ChromaDB, SQLite)
+│   ├── app/
+│   │   ├── agents/   # Agente conversazionale TripAI e middleware HITL
+│   │   ├── api/      # Endpoint REST (Chat, History, Resume, Bookings)
+│   │   ├── rag/      # Database vettoriale ChromaDB e pipeline di ingestion
+│   │   ├── schemas/  # Schemi Pydantic v2 di I/O e risposta strutturata
+│   │   ├── services/ # Tool LangChain (ricerca voli, hotel, RAG attività, prenotazione)
+│   │   └── database.py / seed_data.py / create_db.py
+├── frontend/         # Interfaccia utente (React 19, TypeScript, Vite, Vanilla CSS)
+│   ├── src/
+│   │   ├── components/ # ChatView, ItineraryCanvas, ChatSidebar, DashboardView, ecc.
+│   │   ├── services/   # Client API REST per il backend
+│   │   └── types.ts    # Interfacce TypeScript
+└── tasks/            # Specifiche e tracciamento dei task di sviluppo
+```
+
+### Tecnologie Chiave:
+*   **Backend**: Python 3.13, FastAPI, LangChain / LangGraph (con `SqliteSaver` per la persistenza delle conversazioni e `HumanInTheLoopMiddleware` per la sicurezza delle prenotazioni), SQLAlchemy (SQLite) e ChromaDB per la ricerca RAG vettoriale.
+*   **AI / LLM Flessibile**:
+    *   **Cloud**: Supporto nativo a **Google Gemini 1.5 Pro** / **Flash**.
+    *   **Locale**: Supporto ad **Ollama** per eseguire modelli locali ad alte prestazioni (es. `qwen2.5:14b` o `gemma2:9b`) sfruttando schede video come la **NVIDIA RTX 3060 (12GB VRAM)**.
+*   **Frontend**: React, TypeScript, Vite, Vanilla CSS avanzato con palette *"Golden Hour & Midnight"* e design responsive.
+
+---
+
+## 🌟 Funzionalità Principali
+
+1.  **Conversazione Intelligente & Tool Calling**:
+    L'agente conversa in italiano ed usa autonomamente i tool per cercare tra 43 destinazioni globali:
+    *   ✈️ **Voli** (215 voli con varie stagionalità dagli hub FCO/MXP).
+    *   🏨 **Hotel** (430 alloggi divisi in fascia economica, media e lusso).
+    *   🎯 **Attività RAG GetYourGuide-style** (860 tour ed esperienze reali con ricerca semantica).
+2.  **Scheda Viaggio Live (`ItineraryCanvas`)**:
+    L'itinerario si popola in tempo reale a destra dello schermo non appena viene espressa la destinazione, aggiornandosi man mano che voli, hotel e attività vengono scelti.
+3.  **Titoli Chat Dinamici**:
+    Ogni nuova conversazione parte con il titolo `"Nuovo viaggio"` e si aggiorna automaticamente in `"Viaggio a {Destinazione}"` non appena la meta viene individuata.
+4.  **Prenotazione Protetta (Human-in-the-Loop)**:
+    L'agente non può addebitare o prenotare viaggi autonomamente; prima dell'esecuzione del tool `book_trip` si attiva un modale interattivo che richiede la conferma esplicita dell'utente.
+5.  **Dashboard Prenotazioni**:
+    Vista dedicata per accedere allo storico dei viaggi confermati o in attesa e gestire eventuali cancellazioni.
 
 ---
 
 ## 🛠️ Prerequisiti
 
-Assicurati di avere installato sul tuo sistema:
 *   **Python 3.13** o superiore.
-*   **uv**: Il gestore di pacchetti e ambienti Python ultra-veloce (consigliato). Se non lo hai, installalo tramite:
-    ```powershell
-    # Su Windows (PowerShell)
-    powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
-    
-    # Su macOS/Linux
-    curl -LsSf https://astral.sh/uv/install.sh | sh
+*   **uv**: Gestore di pacchetti Python ultra-veloce ([Istruzioni di installazione uv](https://astral.sh/uv)).
+*   **Node.js 18+** e **npm** (per il frontend).
+*   *(Opzionale per AI Locale)*: **Ollama** installato per eseguire LLM in locale su GPU.
+
+---
+
+## 🚀 Guida Rapida all'Esecuzione (Fullstack)
+
+### Step 1: Configurazione Ambiente e Dipendenze Python
+
+Nella root del progetto (`ai-travel-assistant`):
+
+```powershell
+# 1. Crea e sincronizza l'ambiente virtuale Python (.venv)
+uv sync
+
+# 2. Configura il file delle variabili d'ambiente
+cp .env.example .env
+```
+
+Apri il file `.env` e configura il provider LLM desiderato:
+
+*   **Per usare Google Gemini (Cloud)**:
+    ```env
+    LLM_PROVIDER=google
+    GOOGLE_API_KEY=la_tua_chiave_google_ai_studio
+    LLM_MODEL=gemini-1.5-pro
+    ```
+*   **Per usare Ollama (Locale su GPU RTX 3060 12GB)**:
+    ```env
+    LLM_PROVIDER=ollama
+    LLM_MODEL=qwen2.5:14b
+    OLLAMA_BASE_URL=http://localhost:11434
     ```
 
 ---
 
-## 🚀 Setup e Installazione
+### Step 2: Inizializzazione Database Relazionale e Vettoriale (Seeding & RAG)
 
-Segui questi passaggi per configurare l'ambiente virtuale e installare le dipendenze del backend:
+Esegui lo script di popolamento nella root del progetto:
 
-1.  **Crea l'ambiente virtuale** nella root del progetto:
-    ```bash
-    uv venv
-    ```
-
-2.  **Attiva l'ambiente virtuale**:
-    *   **Windows (PowerShell)**:
-        ```powershell
-        .venv\Scripts\activate
-        ```
-    *   **macOS/Linux**:
-        ```bash
-        source .venv/bin/activate
-        ```
-
-3.  **Installa le dipendenze** del backend direttamente da `pyproject.toml`:
-    *   **Metodo consigliato (Standard `uv`):**
-        ```bash
-        uv sync
-        ```
-        *(Questo comando crea automaticamente l'ambiente virtuale `.venv` se non esiste e installa tutte le dipendenze definite in `pyproject.toml` in un unico passaggio).*
-    
-    *   **Metodo alternativo (`uv pip`):**
-        ```bash
-        uv pip install -e .
-        ```
-        *(Installa il progetto in modalità editabile con tutte le sue dipendenze).*
-
-
----
-
-## 💾 Inizializzazione dei Database
-
-Per facilitare l'avvio, abbiamo creato uno script unificato `create_db.py` che si occupa di configurare sia il database relazionale (SQLite) che quello vettoriale (ChromaDB).
-
-Esegui lo script stando nella root del progetto:
-
-```bash
-# Esecuzione standard (creazione database relazionale + vettoriale su CPU)
-uv run python backend/app/create_db.py
-
-# Esecuzione sfruttando la GPU (RTX 3060) per gli embeddings (molto più veloce!)
-uv run python backend/app/create_db.py --gpu
-
-# Esecuzione su GPU con test di verifica RAG finali
+```powershell
+# Inizializzazione con calcolo degli embeddings vettoriali su GPU (NVIDIA RTX 3060) e test di verifica
 uv run python backend/app/create_db.py --gpu --test
 ```
 
-### Opzioni dello Script:
-*   `--gpu`: Forza l'utilizzo della GPU NVIDIA (RTX 3060) tramite CUDA per calcolare gli embeddings in frazioni di secondo. Se CUDA non è disponibile, lo script farà un fallback sicuro su CPU.
-*   `--test`: Esegue due query semantiche di test con filtri sui metadati (paese e prezzo massimo) per assicurarsi che la ricerca semantica RAG funzioni correttamente.
-
-### Cosa fa questo script?
-1.  **Seeding SQLite**: Crea il database `backend/app/travel_assistant.db` e lo popola con dati di seed realistici (voli, hotel, e 29 attività descritte in dettaglio).
-2.  **Ingestion RAG**: Inizializza ChromaDB (`backend/db/chroma_db`), carica le attività da SQLite, ne calcola gli embeddings localmente tramite il modello HuggingFace `sentence-transformers/all-MiniLM-L6-v2` (~120MB, offline su CPU o GPU) e li indicizza.
-3.  **Verifica (solo con `--test`)**: Esegue due query semantiche di test per assicurarsi che la ricerca semantica RAG funzioni correttamente.
-
+*Questo comando popolerà SQLite con 43 destinazioni, 215 voli, 430 hotel e 860 attività stile GetYourGuide, calcolando gli embeddings per ChromaDB.*
 
 ---
 
-## 📂 Struttura del Codice (Backend)
+### Step 3: Avvio del Server Backend (FastAPI)
 
-La struttura dei file relativi ai dati e al RAG è organizzata come segue:
+```powershell
+uv run uvicorn backend.app.main:app --reload
+```
 
-*   [`backend/app/database.py`](file:///c:/Users/rioti/Documents/Projects/ai-travel-assistant/backend/app/database.py): Modelli ORM di SQLAlchemy (`User`, `Flight`, `Hotel`, `Activity`, `Booking`) e connessione SQLite.
-*   [`backend/app/seed_data.py`](file:///c:/Users/rioti/Documents/Projects/ai-travel-assistant/backend/app/seed_data.py): Script di popolamento iniziale dei dati relazionali.
-*   [`backend/app/rag/vector_db.py`](file:///c:/Users/rioti/Documents/Projects/ai-travel-assistant/backend/app/rag/vector_db.py): Configurazione del Vector Store (ChromaDB) e dei modelli di embedding.
-*   [`backend/app/rag/ingestion.py`](file:///c:/Users/rioti/Documents/Projects/ai-travel-assistant/backend/app/rag/ingestion.py): Pipeline per il calcolo degli embeddings e l'indicizzazione semantica.
-*   [`backend/app/create_db.py`](file:///c:/Users/rioti/Documents/Projects/ai-travel-assistant/backend/app/create_db.py): Script unificato di creazione dei database con flag di test.
+* Server Backend: **`http://localhost:8000`**
+* Documentazione OpenAPI / Swagger UI: **`http://localhost:8000/docs`**
 
+---
+
+### Step 4: Setup ed Avvio del Frontend (React + Vite)
+
+In una **seconda finestra terminale**:
+
+```powershell
+# 1. Entra nella cartella frontend
+cd frontend
+
+# 2. Installa le dipendenze Node.js
+npm install
+
+# 3. Avvia il server di sviluppo Vite
+npm run dev
+```
+
+* Interfaccia Web App: **`http://localhost:5173`** *(Vite inoltrerà automaticamente le chiamate `/api` al backend su `localhost:8000`)*.
+
+---
+
+## 🔌 API REST Principal (FastAPI)
+
+*   `POST /api/chat`: Invia un messaggio all'agente. Restituisce la risposta conversazionale, l'itinerario strutturato e le domande rapide.
+*   `GET /api/chat/history/{thread_id}`: Recupera la cronologia dei messaggi per una determinata chat.
+*   `GET /api/chat/threads`: Elenca le chat salvate dell'utente con i rispettivi titoli dinamici.
+*   `DELETE /api/chat/threads/{thread_id}`: Elimina una conversazione dallo storico SQLite.
+*   `POST /api/chat/resume`: Approva o rifiuta un'azione di prenotazione in stato di interruzione (HITL).
+*   `GET /api/bookings`: Restituisce la lista delle prenotazioni effettuate.
+*   `POST /api/bookings/{id}/cancel`: Annulla una prenotazione esistente.
+
+---
+
+## 📦 Comandi Utili
+
+| Comando | Descrizione |
+| :--- | :--- |
+| `uv sync` | Sincronizza l'ambiente virtuale Python `.venv` |
+| `uv run python backend/app/create_db.py --gpu --test` | Re-inizializza SQLite, ChromaDB ed esegue i test RAG |
+| `uv run uvicorn backend.app.main:app --reload` | Avvia il server backend in modalità live-reload |
+| `cd frontend && npm run dev` | Avvia l'interfaccia frontend in sviluppo |
+| `cd frontend && npm run build` | Genera la build di produzione del frontend in `dist/` |

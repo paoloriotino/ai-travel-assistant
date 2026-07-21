@@ -71,7 +71,7 @@ def main():
     if args.gpu:
         os.environ["USE_GPU"] = "1"
     else:
-        os.environ["USE_GPU"] = "0"
+        os.environ["USE_GPU"] = "auto"
         
     print("=== INIZIALIZZAZIONE PIPELINE DATI ===")
     

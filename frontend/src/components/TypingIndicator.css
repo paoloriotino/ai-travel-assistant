@@ -1,0 +1,83 @@
+/* ═══════════════════════════════════════════════════════
+   TypingIndicator — Indicatore di digitazione
+   ═══════════════════════════════════════════════════════ */
+
+.typing-indicator {
+  display: flex;
+  gap: var(--space-3);
+  align-self: flex-start;
+  max-width: 85%;
+  animation: message-enter 0.35s var(--transition-smooth) both;
+}
+
+.typing-indicator__avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(30, 58, 95, 0.4);
+  color: var(--color-golden-hour);
+  font-size: var(--text-base);
+  flex-shrink: 0;
+}
+
+.typing-indicator__bubble {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-surface);
+  border: 1px solid rgba(30, 58, 95, 0.5);
+  border-radius: var(--radius-xs) var(--radius-md) var(--radius-md) var(--radius-md);
+}
+
+.typing-indicator__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-full);
+  background: var(--color-golden-hour);
+  animation: typing-bounce 1.4s ease-in-out infinite;
+}
+
+.typing-indicator__dot:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.typing-indicator__dot:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes typing-bounce {
+  0%, 60%, 100% {
+    transform: translateY(0);
+    opacity: 0.4;
+  }
+  30% {
+    transform: translateY(-6px);
+    opacity: 1;
+  }
+}
+
+/* Reusa l'animazione d'entrata di ChatMessage */
+@keyframes message-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .typing-indicator {
+    animation: none;
+  }
+  .typing-indicator__dot {
+    animation: none;
+    opacity: 0.7;
+  }
+}

@@ -1,5 +1,326 @@
 import datetime
 from database import init_db, SessionLocal, Flight, Hotel, Activity, User
+from services.security import get_password_hash
+
+# Lista di 43 destinazioni mondiali con attrazioni reali stile GetYourGuide e cibi tipici
+DESTINATIONS = [
+    {"city": "Rome", "country": "Italy", "airport": "FCO", "highlights": "Colosseo, Musei Vaticani e Fontana di Trevi", "cuisine": "Pasta Carbonara, Cacio e Pepe e Supplì croccanti"},
+    {"city": "Milan", "country": "Italy", "airport": "MXP", "highlights": "Duomo di Milano, Galleria Vittorio Emanuele e Navigli", "cuisine": "Risotto alla Milanese e Cotoletta d'oro"},
+    {"city": "Tokyo", "country": "Japan", "airport": "HND", "highlights": "Quartiere Shibuya, Tempio Asakusa e Santuario Meiji", "cuisine": "Sushi fresco, Ramen artigianale e Takoyaki"},
+    {"city": "Paris", "country": "France", "airport": "CDG", "highlights": "Tour Eiffel, Museo del Louvre e Montmartre", "cuisine": "Macarons parigini, Croissants sfogliati ed Escargots"},
+    {"city": "New York", "country": "United States", "airport": "JFK", "highlights": "Central Park, Empire State Building e Statua della Libertà", "cuisine": "Pizza stile NY, Cheesecake e Hot Dog gourmet"},
+    {"city": "London", "country": "United Kingdom", "airport": "LHR", "highlights": "Big Ben, London Eye e Warner Bros Studio Harry Potter", "cuisine": "Fish and Chips croccante e Afternoon Tea inglese"},
+    {"city": "Reykjavik", "country": "Iceland", "airport": "KEF", "highlights": "Laguna Blu, Circolo d'Oro e Aurora Boreale", "cuisine": "Skyr artigianale e Zuppa d'agnello islandese"},
+    {"city": "Sydney", "country": "Australia", "airport": "SYD", "highlights": "Opera House, Harbour Bridge e Bondi Beach", "cuisine": "Torta di carne tradizionale e Frutti di mare freschi"},
+    {"city": "Barcelona", "country": "Spain", "airport": "BCN", "highlights": "Sagrada Familia, Park Güell e Barrio Gotico", "cuisine": "Paella de marisco, Tapas varie e Crema Catalana"},
+    {"city": "Madrid", "country": "Spain", "airport": "MAD", "highlights": "Palazzo Reale, Museo del Prado e Parco del Retiro", "cuisine": "Bocadillo de Calamares, Jamón Ibérico e Churros"},
+    {"city": "Berlin", "country": "Germany", "airport": "BER", "highlights": "Porta di Brandeburgo, Muro di Berlino e Reichstag", "cuisine": "Currywurst originale e Brezel caldi"},
+    {"city": "Munich", "country": "Germany", "airport": "MUC", "highlights": "Marienplatz, Castello di Neuschwanstein ed Englischer Garten", "cuisine": "Weisswurst con senape dolce e Knödel"},
+    {"city": "Amsterdam", "country": "Netherlands", "airport": "AMS", "highlights": "Museo Van Gogh, Canali storici e Rijksmuseum", "cuisine": "Stroopwafel caldi e Bitterballen croccanti"},
+    {"city": "Vienna", "country": "Austria", "airport": "VIE", "highlights": "Castello di Schönbrunn, Cattedrale di Santo Stefano e Belvedere", "cuisine": "Sachertorte originale e Wiener Schnitzel"},
+    {"city": "Athens", "country": "Greece", "airport": "ATH", "highlights": "Acropoli di Atene, Partenone e Quartiere Plaka", "cuisine": "Moussaka tradizionali, Souvlaki e Tzatziki"},
+    {"city": "Lisbon", "country": "Portugal", "airport": "LIS", "highlights": "Torre di Belém, Monastero dei Jerónimos e Quartiere Alfama", "cuisine": "Pastel de Nata caldo e Bacalhau a Brás"},
+    {"city": "Prague", "country": "Czech Republic", "airport": "PRG", "highlights": "Ponte Carlo, Castello di Praga e Piazza della Città Vecchia", "cuisine": "Goulash boemo e Trdelník alla cannella"},
+    {"city": "Budapest", "country": "Hungary", "airport": "BUD", "highlights": "Parlamento di Budapest, Castello di Buda e Terme Széchenyi", "cuisine": "Goulash ungherese e Lángos al formaggio"},
+    {"city": "Copenhagen", "country": "Denmark", "airport": "CPH", "highlights": "Giardini di Tivoli, Sirenetta e Porto Nyhavn", "cuisine": "Smørrebrød tradizionali e Danish Pastry caldi"},
+    {"city": "Stockholm", "country": "Sweden", "airport": "ARN", "highlights": "Centro storico Gamla Stan, Museo Vasa e Palazzo Reale", "cuisine": "Polpette svedesi con mirtilli e Cinnamon Buns"},
+    {"city": "Oslo", "country": "Norway", "airport": "OSL", "highlights": "Parco Vigeland, Museo Fram ed Opera House sul Fjord", "cuisine": "Formaggio Brunost e Salmone norvegese affumicato"},
+    {"city": "Helsinki", "country": "Finland", "airport": "HEL", "highlights": "Cattedrale di Helsinki, Fortezza di Suomenlinna e Sauna di Kauppatori", "cuisine": "Karjalanpiirakka e Stufato di renna"},
+    {"city": "Cairo", "country": "Egypt", "airport": "CAI", "highlights": "Piramidi di Giza, Grande Sfinge e Bazar Khan el-Khalili", "cuisine": "Koshary egiziano, Falafel e Ful Medames"},
+    {"city": "Cape Town", "country": "South Africa", "airport": "CPT", "highlights": "Table Mountain, Robben Island e Capo di Buona Speranza", "cuisine": "Biltong essiccato, Bobotie e Vini di Stellenbosch"},
+    {"city": "Dubai", "country": "United Arab Emirates", "airport": "DXB", "highlights": "Burj Khalifa, Safari nel deserto 4x4 e Palm Jumeirah", "cuisine": "Shawarma gourmet, datteri ripieni e Kabsa"},
+    {"city": "Bangkok", "country": "Thailand", "airport": "BKK", "highlights": "Grande Palazzo Reale, Tempio Wat Arun e Mercato Galleggiante", "cuisine": "Pad Thai espresso, Tom Yum Goong e Mango Sticky Rice"},
+    {"city": "Singapore", "country": "Singapore", "airport": "SIN", "highlights": "Gardens by the Bay, Marina Bay Sands ed Isola di Sentosa", "cuisine": "Chilli Crab speziato e Hainanese Chicken Rice"},
+    {"city": "Bali", "country": "Indonesia", "airport": "DPS", "highlights": "Foresta delle Scimmie di Ubud, Tempio Uluwatu e Terrazze di Riso", "cuisine": "Nasi Goreng, Sate Lilit e Babi Guling"},
+    {"city": "Seoul", "country": "South Korea", "airport": "ICN", "highlights": "Palazzo Gyeongbokgung, N Seoul Tower e Mercato Myeongdong", "cuisine": "Kimchi fermentato, Korean BBQ e Bibimbap caldissimo"},
+    {"city": "Beijing", "country": "China", "airport": "PEK", "highlights": "Grande Muraglia Cinese, Città Proibita e Tempio del Cielo", "cuisine": "Anatra alla Pechinese croccante e Dumplings vapore"},
+    {"city": "Delhi", "country": "India", "airport": "DEL", "highlights": "Forte Rosso, Minareto Qutub Minar ed India Gate", "cuisine": "Butter Chicken cremoso e Biryani profumato"},
+    {"city": "Mumbai", "country": "India", "airport": "BOM", "highlights": "Gateway of India, Passeggiata Marine Drive e Grotte di Elephanta", "cuisine": "Vada Pav speziato e Pav Bhaji caldo"},
+    {"city": "Toronto", "country": "Canada", "airport": "YYZ", "highlights": "Torre CN Tower, Museo Royal Ontario ed Acquario Ripley", "cuisine": "Poutine originale e Peameal Bacon Sandwich"},
+    {"city": "Vancouver", "country": "Canada", "airport": "YVR", "highlights": "Parco Stanley, Ponte Sospeso Capilano ed Isola Granville", "cuisine": "Salmone selvaggio grigliato e Japadog gourmet"},
+    {"city": "Los Angeles", "country": "United States", "airport": "LAX", "highlights": "Hollywood Walk of Fame, Molo di Santa Monica e Getty Center", "cuisine": "Tacos californiani e Smash Burgers"},
+    {"city": "San Francisco", "country": "United States", "airport": "SFO", "highlights": "Ponte Golden Gate, Isola di Alcatraz e Fisherman's Wharf", "cuisine": "Clam Chowder nella pagnotta di pane di pasta madre"},
+    {"city": "Miami", "country": "United States", "airport": "MIA", "highlights": "Spiaggia South Beach, Quartiere Little Havana e Murals Wynwood", "cuisine": "Sandwich cubano originale e Torta Key Lime"},
+    {"city": "Rio de Janeiro", "country": "Brazil", "airport": "GIG", "highlights": "Statua del Cristo Redentore, Pan di Zucchero e Copacabana", "cuisine": "Feijoada brasiliana, Pão de Queijo e Caipirinha"},
+    {"city": "Buenos Aires", "country": "Argentina", "airport": "EZE", "highlights": "Quartiere La Boca, Cimitero Recoleta e Spettacolo di Tango", "cuisine": "Asado argentino alla griglia ed Empanadas fatte a mano"},
+    {"city": "Mexico City", "country": "Mexico", "airport": "MEX", "highlights": "Piramidi di Teotihuacan, Museo Frida Kahlo e Piazza Zocalo", "cuisine": "Tacos al Pastor con ananas, Quesadillas e Guacamole fresco"},
+    {"city": "Marrakech", "country": "Morocco", "airport": "RAK", "highlights": "Piazza Jemaa el-Fnaa, Palazzo Bahia e Giardini Majorelle", "cuisine": "Tagine speziato, Couscous e Tè alla menta fresco"},
+    {"city": "Venice", "country": "Italy", "airport": "VCE", "highlights": "Piazza San Marco, Canal Grande e Ponte di Rialto", "cuisine": "Risi e Bisi, Cicchetti veneziani con Spritz e Sarde in Saor"},
+    {"city": "Florence", "country": "Italy", "airport": "FLR", "highlights": "Galleria degli Uffizi, Duomo del Brunelleschi e Ponte Vecchio", "cuisine": "Bistecca alla Fiorentina, Cantucci con Vin Santo e Lampredotto"},
+]
+
+# 20 Template GetYourGuide-style ad alta fedeltà e ricchezza di dettagli
+ACTIVITY_TEMPLATES = [
+    # 1. Tour monumentale con ingresso salta-fila (Cultura)
+    {
+        "title": "GetYourGuide Original: Tour salta-fila guidato a {highlights}",
+        "description": "Evita le lunghe code all'ingresso e accedi prioritariamente a {highlights} a {city}. Accompagnato da una guida esperta locale che ti svelerà segreti, aneddoti storici e dettagli architettonici unici.",
+        "price": 55.00,
+        "target_audience": "cultura, famiglie, coppie",
+        "available_months": "1,2,3,4,5,6,7,8,9,10,11,12"
+    },
+    # 2. Corso di cucina autentico (Gastronomia)
+    {
+        "title": "Corso di cucina locale ed assaggio di {cuisine} a {city}",
+        "description": "Metti le mani in pasta in un atelier culinario nel cuore di {city}! Impara a preparare da zero le ricette iconiche della tradizione come {cuisine} guidato da uno chef locale. Segue pranzo o cena gourmet con bevande.",
+        "price": 75.00,
+        "target_audience": "buongustai, coppie, famiglie",
+        "available_months": "1,2,3,4,5,6,7,8,9,10,11,12"
+    },
+    # 3. Street Food Tour nei mercati storici (Gastronomia)
+    {
+        "title": "Street Food Tour gourmet e degustazione di {cuisine} a {city}",
+        "description": "Una passeggiata gastronomica tra i banchi colorati dei mercati tradizionali di {city}. Assaggia oltre 6 specialità autentiche tra cui {cuisine}, raccontate da una guida locale appassionata di cibo.",
+        "price": 42.00,
+        "target_audience": "giovani, buongustai, solitari",
+        "available_months": "1,2,3,4,5,6,7,8,9,10,11,12"
+    },
+    # 4. Crociera panoramica / Gita in barca (Avventura & Natura)
+    {
+        "title": "Crociera panoramica e vista su {highlights} a {city}",
+        "description": "Sali a bordo di una confortevole imbarcazione e naviga sulle acque di {city} per ammirare le attrazioni leggendarie come {highlights} da un punto di vista spettacolare. Aperitivo di benvenuto e audioguida inclusi.",
+        "price": 48.00,
+        "target_audience": "coppie, famiglie, relax",
+        "available_months": "4,5,6,7,8,9,10"
+    },
+    # 5. Escursione guidata di un giorno in natura o fuori porta (Avventura & Natura)
+    {
+        "title": "Escursione guidata di un giorno tra {highlights} nei dintorni di {city}",
+        "description": "Lasciati la città alle spalle per un'avventura indimenticabile immersa nella natura o tra le meraviglie monumentali vicine a {city}. Include trasporto in bus gran turismo con aria condizionata e guida dal vivo.",
+        "price": 85.00,
+        "target_audience": "avventura, natura, famiglie",
+        "available_months": "3,4,5,6,7,8,9,10,11"
+    },
+    # 6. Spettacolo culturale dal vivo serale (Cultura & Intrattenimento)
+    {
+        "title": "Spettacolo culturale dal vivo e cena tradizionale a {city}",
+        "description": "Goditi una serata indimenticabile a {city} assistendo a un autentico spettacolo culturale dal vivo in un teatro d'epoca, accompagnato da una deliziosa cena a base di specialità locali tra cui {cuisine}.",
+        "price": 68.00,
+        "target_audience": "coppie, cultura, relax",
+        "available_months": "1,2,3,4,5,6,7,8,9,10,11,12"
+    },
+    # 7. Tour in e-bike o bicicletta panoramica (Sport & Natura)
+    {
+        "title": "Tour panoramico guidato in E-Bike tra i parchi e {highlights} di {city}",
+        "description": "Pedala senza sforzo in sella a una bicicletta elettrica moderna ed esplora i parchi verdeggianti e le piazze storiche di {city}. Il percorso tocca i monumenti più celebri come {highlights} con soste fotografiche.",
+        "price": 38.00,
+        "target_audience": "sportivi, famiglie, natura",
+        "available_months": "3,4,5,6,7,8,9,10,11"
+    },
+    # 8. Esperienza Spa e Terme Benessere (Relax & Benessere)
+    {
+        "title": "Ingresso Spa, bagno termale e massaggio benessere a {city}",
+        "description": "Regalati una pausa di puro relax e benessere in uno storico centro termale o Spa di lusso a {city}. L'esperienza include l'accesso completo a saune, idromassaggi e un trattamenti rilassante personalizzato.",
+        "price": 95.00,
+        "target_audience": "coppie, relax",
+        "available_months": "1,2,3,4,5,6,7,8,9,10,11,12"
+    },
+    # 9. Visita Esclusiva VIP all'alba prima dell'apertura (Cultura)
+    {
+        "title": "Ingresso VIP prioritario all'alba a {highlights} senza folle",
+        "description": "Accedi a {highlights} a {city} prima dell'orario di apertura ufficiale al pubblico. Ammira la maestosità delle collezioni d'arte e dei monumenti in totale tranquillità e silenzio con una guida d'eccezione.",
+        "price": 110.00,
+        "target_audience": "cultura, coppie, relax",
+        "available_months": "1,2,3,4,5,6,7,8,9,10,11,12"
+    },
+    # 10. Tour dei Pub storici e vita notturna (Nightlife)
+    {
+        "title": "Pub Crawl guidato e tour della vita notturna a {city}",
+        "description": "Scopri la vivace atmosfera notturna di {city}! Unisciti a un gruppo internazionale per visitare 4 locali e pub storici selezionati, con shot di benvenuto inclusi e ingresso prioritario nei migliori club.",
+        "price": 28.00,
+        "target_audience": "giovani, nightlife, solitari",
+        "available_months": "1,2,3,4,5,6,7,8,9,10,11,12"
+    },
+    # 11. Trekking ed escursione avventura (Sport & Avventura)
+    {
+        "title": "Trekking avventura e sentieri panoramici vicino a {city}",
+        "description": "Attraversa sentieri mozzafiato e scorci naturali incontaminati nei dintorni di {city}. Una camminata guidata adatta ad amanti dell'aria aperta che culmina in un punto di osservazione panoramico spettacolare.",
+        "price": 45.00,
+        "target_audience": "sportivi, avventura, natura",
+        "available_months": "4,5,6,7,8,9,10"
+    },
+    # 12. Tour fotografico notturno (Nightlife & Cultura)
+    {
+        "title": "Tour fotografico notturno tra i monumenti illuminati di {city}",
+        "description": "Scatta fotografie da copertina a {city} quando i monumenti storici come {highlights} si accendono di luci suggestive. Guidato da un fotografo professionista che ti insegnerà tecniche di scatto in notturna.",
+        "price": 40.00,
+        "target_audience": "giovani, coppie, cultura",
+        "available_months": "1,2,3,4,5,6,7,8,9,10,11,12"
+    },
+    # 13. Attività acquatica sportiva (Sport & Azione)
+    {
+        "title": "Attività acquatica (Kayak, Surf o Paddleboard) a {city}",
+        "description": "Sperimenta un'emozionante attività acquatica lungo le coste o i corsi d'acqua di {city}. Include la lezione introduttiva con istruttore qualificato e tutto l'equipaggiamento tecnico necessario.",
+        "price": 52.00,
+        "target_audience": "sportivi, giovani, avventura",
+        "available_months": "6,7,8,9"
+    },
+    # 14. Yoga e meditazione all'aperto (Relax & Benessere)
+    {
+        "title": "Sessione di Yoga e Mindfulness al tramonto nei parchi di {city}",
+        "description": "Rigenera lo spirito con una sessione di yoga e meditazione guidata al tramonto immerso nei parchi o spiagge panoramiche di {city}. Tappetino e bevanda purificante naturale inclusi.",
+        "price": 22.00,
+        "target_audience": "relax, sportivi, solitari",
+        "available_months": "5,6,7,8,9"
+    },
+    # 15. Tour del quartiere artistico ed alternativo (Cultura)
+    {
+        "title": "Esplorazione guidata dei quartieri creativi e Street Art a {city}",
+        "description": "Scopri il volto contemporaneo ed alternativo di {city}. Cammina tra gallerie d'arte indipendenti, imponenti murales di street art e mercatini vintage insoliti lontano dalle classiche rotte turistiche.",
+        "price": 24.00,
+        "target_audience": "giovani, cultura, solitari",
+        "available_months": "1,2,3,4,5,6,7,8,9,10,11,12"
+    },
+    # 16. Cena gourmet di lusso con degustazione vini (Gastronomia)
+    {
+        "title": "Cena gourmet in ristorante panoramico ed assaggio di {cuisine} a {city}",
+        "description": "Una serata gastronomica d'alto livello con vista sulle luci di {city}. Menu degustazione a 4 portate basato sulle migliori ricette tradizionali come {cuisine}, abbinato a vini pregiati selezionati.",
+        "price": 125.00,
+        "target_audience": "coppie, buongustai, relax",
+        "available_months": "1,2,3,4,5,6,7,8,9,10,11,12"
+    },
+    # 17. Urban Escape Game e Caccia al Tesoro (Avventura & Intrattenimento)
+    {
+        "title": "Caccia al tesoro urbana ed Escape Game interattivo a {city}",
+        "description": "Metti alla prova la tua astuzia risolvendo indovinelli storici e codici segreti mentre cammini per il centro storico di {city}. Un'avventura divertente da fare in squadra o in famiglia guidata da un'app.",
+        "price": 19.00,
+        "target_audience": "giovani, famiglie, avventura",
+        "available_months": "1,2,3,4,5,6,7,8,9,10,11,12"
+    },
+    # 18. Passeggiata nei Giardini Botanici o Parchi Reali (Relax & Natura)
+    {
+        "title": "Visita rilassante ai Giardini Botanici Reali ed oasi verdi di {city}",
+        "description": "Una camminata rigenerante tra piante secolari, serre monumentali e specchi d'acqua nei giardini storici di {city}. Ideale per chi cerca relax, silenzio ed ispirazione naturale.",
+        "price": 16.00,
+        "target_audience": "relax, famiglie, cultura",
+        "available_months": "3,4,5,6,7,8,9,10"
+    },
+    # 19. Percorso avventura e arrampicata nei boschi (Sport & Avventura)
+    {
+        "title": "Parco Avventura, ponti tibetani e zipline nei boschi di {city}",
+        "description": "Vivi un'esperienza adrenalinica sospeso tra gli alberi in un parco avventura immerso nei boschi vicino a {city}. Supera ponti di corda, tirolesi e carrucole in totale sicurezza.",
+        "price": 36.00,
+        "target_audience": "sportivi, avventura, giovani",
+        "available_months": "4,5,6,7,8,9,10"
+    },
+    # 20. Running tour guidato all'alba (Sport & Cultura)
+    {
+        "title": "Running tour all'alba tra i monumenti deserti ed {highlights} a {city}",
+        "description": "Unisci sport e turismo con una corsa panoramica mattutina di 5-8 km. Attraversa le vie deserte di {city} ammirando in solitudine la maestosità di {highlights} guidato da un running coach locale.",
+        "price": 25.00,
+        "target_audience": "sportivi, giovani, solitari",
+        "available_months": "1,2,3,4,5,6,7,8,9,10,11,12"
+    }
+]
+
+def generate_flights():
+    flights = []
+    hubs = ["FCO", "MXP"]
+    
+    flight_dates = [
+        (datetime.date(2026, 8, 10), datetime.date(2026, 8, 17)),
+        (datetime.date(2026, 9, 15), datetime.date(2026, 9, 22)),
+        (datetime.date(2026, 10, 5), datetime.date(2026, 10, 12)),
+        (datetime.date(2026, 12, 23), datetime.date(2026, 12, 30)),
+        (datetime.date(2027, 4, 10), datetime.date(2027, 4, 17))
+    ]
+    
+    for dest in DESTINATIONS:
+        dest_airport = dest["airport"]
+        
+        if dest_airport in ["FCO", "MXP", "VCE", "FLR"]:
+            base_price = 80.00
+        elif dest_airport in ["CDG", "LHR", "BCN", "MAD", "BER", "MUC", "AMS", "VIE", "ATH", "LIS", "PRG", "BUD", "CPH", "ARN", "OSL", "HEL"]:
+            base_price = 150.00
+        elif dest_airport in ["KEF", "CAI", "DXB", "RAK"]:
+            base_price = 350.00
+        elif dest_airport in ["JFK", "LAX", "SFO", "MIA", "YYZ", "YVR", "GIG", "EZE", "MEX"]:
+            base_price = 750.00
+        else:
+            base_price = 980.00
+            
+        for i, (dep_date, ret_date) in enumerate(flight_dates):
+            if i == 0: multiplier = 1.2
+            elif i == 1: multiplier = 1.0
+            elif i == 2: multiplier = 0.9
+            elif i == 3: multiplier = 1.3
+            else: multiplier = 1.1
+            
+            price = round(base_price * multiplier, 2)
+            availability = 10 + (i * 3) % 15
+            
+            if dest_airport == "FCO":
+                departures = ["MXP", "CDG", "JFK", "LHR"]
+                dep = departures[i % len(departures)]
+                flight_price = price * 2.0 if dep == "JFK" else price
+                flights.append(Flight(departure_airport=dep, arrival_airport="FCO", departure_date=dep_date, return_date=ret_date, price=round(flight_price, 2), availability=availability))
+            elif dest_airport == "MXP":
+                departures = ["FCO", "CDG", "JFK", "LHR"]
+                dep = departures[i % len(departures)]
+                flight_price = price * 2.0 if dep == "JFK" else price
+                flights.append(Flight(departure_airport=dep, arrival_airport="MXP", departure_date=dep_date, return_date=ret_date, price=round(flight_price, 2), availability=availability))
+            else:
+                dep = hubs[i % len(hubs)]
+                flights.append(Flight(departure_airport=dep, arrival_airport=dest_airport, departure_date=dep_date, return_date=ret_date, price=price, availability=availability))
+                
+    return flights
+
+def generate_hotels():
+    hotels = []
+    start_date = datetime.date(2026, 1, 1)
+    end_date = datetime.date(2027, 12, 31)
+    
+    for dest in DESTINATIONS:
+        city = dest["city"]
+        
+        hotel_configs = [
+            {"name": f"{city} Cozy Hostel", "price": 45.00},
+            {"name": f"Budget Stay {city}", "price": 55.00},
+            {"name": f"{city} Central Guesthouse", "price": 70.00},
+            {"name": f"The {city} Inn", "price": 95.00},
+            {"name": f"{city} Park Hotel", "price": 115.00},
+            {"name": f"Green Garden Hotel {city}", "price": 130.00},
+            {"name": f"{city} Central Suites", "price": 150.00},
+            {"name": f"Grand Hotel {city}", "price": 240.00},
+            {"name": f"The {city} Palace & Spa", "price": 360.00},
+            {"name": f"Royal Resort {city}", "price": 490.00}
+        ]
+        
+        for config in hotel_configs:
+            hotels.append(Hotel(
+                name=config["name"],
+                city=city,
+                price_per_night=config["price"],
+                available_start_date=start_date,
+                available_end_date=end_date
+            ))
+            
+    return hotels
+
+def generate_activities():
+    activities = []
+    for dest in DESTINATIONS:
+        city = dest["city"]
+        country = dest["country"]
+        highlights = dest["highlights"]
+        cuisine = dest["cuisine"]
+        
+        for tpl in ACTIVITY_TEMPLATES:
+            title = tpl["title"].format(city=city, country=country, highlights=highlights, cuisine=cuisine)
+            description = tpl["description"].format(city=city, country=country, highlights=highlights, cuisine=cuisine)
+            price = tpl["price"]
+            
+            activities.append(Activity(
+                title=title,
+                city=city,
+                country=country,
+                price=price,
+                description=description,
+                target_audience=tpl["target_audience"],
+                available_months=tpl["available_months"]
+            ))
+            
+    return activities
 
 def seed_database():
     print("Inizializzazione del database...")
@@ -8,7 +329,6 @@ def seed_database():
     db = SessionLocal()
     
     try:
-        # Pulisci tabelle esistenti per evitare duplicazioni nel seeding
         db.query(Flight).delete()
         db.query(Hotel).delete()
         db.query(Activity).delete()
@@ -17,277 +337,22 @@ def seed_database():
         
         print("Inserimento Utenti di test...")
         users = [
-            User(username="viaggiatore", email="viaggiatore@example.com", hashed_password="hashed_password_placeholder_123"),
-            User(username="alice", email="alice@example.com", hashed_password="password_alice_456"),
-            User(username="bob", email="bob@example.com", hashed_password="password_bob_789")
+            User(username="viaggiatore", hashed_password=get_password_hash("password123")),
+            User(username="alice", hashed_password=get_password_hash("password_alice_456")),
+            User(username="bob", hashed_password=get_password_hash("password_bob_789"))
         ]
         db.add_all(users)
         
-        print("Inserimento Voli (Espanso)...")
-        flights = [
-            # --- Voli da Roma FCO / Milano MXP a Tokyo HND ---
-            Flight(departure_airport="FCO", arrival_airport="HND", departure_date=datetime.date(2026, 8, 1), return_date=datetime.date(2026, 8, 15), price=850.00, availability=10),
-            Flight(departure_airport="FCO", arrival_airport="HND", departure_date=datetime.date(2026, 9, 5), return_date=datetime.date(2026, 9, 20), price=720.00, availability=15),
-            Flight(departure_airport="MXP", arrival_airport="HND", departure_date=datetime.date(2026, 10, 10), return_date=datetime.date(2026, 10, 24), price=690.00, availability=12),
-            Flight(departure_airport="FCO", arrival_airport="HND", departure_date=datetime.date(2026, 12, 20), return_date=datetime.date(2027, 1, 4), price=1150.00, availability=8),
-            
-            # --- Voli da Roma FCO / Milano MXP a Parigi CDG ---
-            Flight(departure_airport="MXP", arrival_airport="CDG", departure_date=datetime.date(2026, 8, 10), return_date=datetime.date(2026, 8, 17), price=120.00, availability=25),
-            Flight(departure_airport="MXP", arrival_airport="CDG", departure_date=datetime.date(2026, 10, 12), return_date=datetime.date(2026, 10, 19), price=85.00, availability=30),
-            Flight(departure_airport="FCO", arrival_airport="CDG", departure_date=datetime.date(2026, 9, 15), return_date=datetime.date(2026, 9, 22), price=110.00, availability=20),
-            Flight(departure_airport="FCO", arrival_airport="CDG", departure_date=datetime.date(2026, 12, 23), return_date=datetime.date(2026, 12, 30), price=195.00, availability=15),
-            
-            # --- Voli da Roma FCO / Milano MXP a New York JFK ---
-            Flight(departure_airport="FCO", arrival_airport="JFK", departure_date=datetime.date(2026, 7, 20), return_date=datetime.date(2026, 8, 3), price=680.00, availability=8),
-            Flight(departure_airport="MXP", arrival_airport="JFK", departure_date=datetime.date(2026, 9, 8), return_date=datetime.date(2026, 9, 22), price=590.00, availability=14),
-            Flight(departure_airport="MXP", arrival_airport="JFK", departure_date=datetime.date(2026, 12, 20), return_date=datetime.date(2027, 1, 3), price=950.00, availability=12),
-            Flight(departure_airport="FCO", arrival_airport="JFK", departure_date=datetime.date(2026, 10, 5), return_date=datetime.date(2026, 10, 15), price=620.00, availability=16),
-            
-            # --- Voli da Roma FCO / Milano MXP a Londra LHR ---
-            Flight(departure_airport="FCO", arrival_airport="LHR", departure_date=datetime.date(2026, 8, 5), return_date=datetime.date(2026, 8, 12), price=135.00, availability=22),
-            Flight(departure_airport="MXP", arrival_airport="LHR", departure_date=datetime.date(2026, 9, 10), return_date=datetime.date(2026, 9, 17), price=95.00, availability=28),
-            Flight(departure_airport="FCO", arrival_airport="LHR", departure_date=datetime.date(2026, 11, 20), return_date=datetime.date(2026, 11, 27), price=80.00, availability=35),
-            
-            # --- Voli da Roma FCO / Milano MXP a Reykjavik KEF ---
-            Flight(departure_airport="FCO", arrival_airport="KEF", departure_date=datetime.date(2026, 8, 10), return_date=datetime.date(2026, 8, 20), price=450.00, availability=10),
-            Flight(departure_airport="MXP", arrival_airport="KEF", departure_date=datetime.date(2026, 9, 1), return_date=datetime.date(2026, 9, 10), price=320.00, availability=15),
-            Flight(departure_airport="MXP", arrival_airport="KEF", departure_date=datetime.date(2026, 12, 10), return_date=datetime.date(2026, 12, 18), price=480.00, availability=8),
-            
-            # --- Voli da Roma FCO / Milano MXP a Sydney SYD ---
-            Flight(departure_airport="FCO", arrival_airport="SYD", departure_date=datetime.date(2026, 11, 1), return_date=datetime.date(2026, 11, 20), price=1350.00, availability=6),
-            Flight(departure_airport="MXP", arrival_airport="SYD", departure_date=datetime.date(2026, 12, 15), return_date=datetime.date(2027, 1, 5), price=1580.00, availability=5)
-        ]
+        print("Generazione procedurale dei Voli...")
+        flights = generate_flights()
         db.add_all(flights)
         
-        print("Inserimento Hotel (Espanso)...")
-        hotels = [
-            # --- Hotel a Tokyo ---
-            Hotel(name="Shinjuku Park Hotel", city="Tokyo", price_per_night=120.00, available_start_date=datetime.date(2026, 1, 1), available_end_date=datetime.date(2026, 12, 31)),
-            Hotel(name="Asakusa Traditional Ryokan", city="Tokyo", price_per_night=95.00, available_start_date=datetime.date(2026, 1, 1), available_end_date=datetime.date(2026, 12, 31)),
-            Hotel(name="Palace Hotel Tokyo", city="Tokyo", price_per_night=350.00, available_start_date=datetime.date(2026, 1, 1), available_end_date=datetime.date(2026, 12, 31)),
-            
-            # --- Hotel a Parigi ---
-            Hotel(name="Hotel de Seine", city="Paris", price_per_night=150.00, available_start_date=datetime.date(2026, 1, 1), available_end_date=datetime.date(2026, 12, 31)),
-            Hotel(name="Montmartre Boutique Hostel", city="Paris", price_per_night=65.00, available_start_date=datetime.date(2026, 1, 1), available_end_date=datetime.date(2026, 12, 31)),
-            Hotel(name="Ritz Paris", city="Paris", price_per_night=650.00, available_start_date=datetime.date(2026, 1, 1), available_end_date=datetime.date(2026, 12, 31)),
-            
-            # --- Hotel a New York ---
-            Hotel(name="The Manhattan Oasis", city="New York", price_per_night=210.00, available_start_date=datetime.date(2026, 1, 1), available_end_date=datetime.date(2026, 12, 31)),
-            Hotel(name="Brooklyn Loft Hostel", city="New York", price_per_night=85.00, available_start_date=datetime.date(2026, 1, 1), available_end_date=datetime.date(2026, 12, 31)),
-            Hotel(name="The Plaza Hotel", city="New York", price_per_night=450.00, available_start_date=datetime.date(2026, 1, 1), available_end_date=datetime.date(2026, 12, 31)),
-            
-            # --- Hotel a Londra ---
-            Hotel(name="Covent Garden Inn", city="London", price_per_night=160.00, available_start_date=datetime.date(2026, 1, 1), available_end_date=datetime.date(2026, 12, 31)),
-            Hotel(name="SoHo Backpackers Hostel", city="London", price_per_night=75.00, available_start_date=datetime.date(2026, 1, 1), available_end_date=datetime.date(2026, 12, 31)),
-            Hotel(name="The Savoy", city="London", price_per_night=480.00, available_start_date=datetime.date(2026, 1, 1), available_end_date=datetime.date(2026, 12, 31)),
-            
-            # --- Hotel a Reykjavik ---
-            Hotel(name="Glacier View Guesthouse", city="Reykjavik", price_per_night=130.00, available_start_date=datetime.date(2026, 1, 1), available_end_date=datetime.date(2026, 12, 31)),
-            Hotel(name="Reykjavik Downtown Hostel", city="Reykjavik", price_per_night=60.00, available_start_date=datetime.date(2026, 1, 1), available_end_date=datetime.date(2026, 12, 31)),
-            Hotel(name="Northern Lights Luxury Lodge", city="Reykjavik", price_per_night=280.00, available_start_date=datetime.date(2026, 1, 1), available_end_date=datetime.date(2026, 12, 31)),
-            
-            # --- Hotel a Sydney ---
-            Hotel(name="Harbour Bridge Inn", city="Sydney", price_per_night=185.00, available_start_date=datetime.date(2026, 1, 1), available_end_date=datetime.date(2026, 12, 31)),
-            Hotel(name="Bondi Beach Surf Lodge", city="Sydney", price_per_night=80.00, available_start_date=datetime.date(2026, 1, 1), available_end_date=datetime.date(2026, 12, 31)),
-             Hotel(name="Park Hyatt Sydney", city="Sydney", price_per_night=420.00, available_start_date=datetime.date(2026, 1, 1), available_end_date=datetime.date(2026, 12, 31)),
-            
-            # --- Hotel a Roma ---
-            Hotel(name="Colosseum View Suite", city="Rome", price_per_night=180.00, available_start_date=datetime.date(2026, 1, 1), available_end_date=datetime.date(2026, 12, 31)),
-            Hotel(name="Trastevere Cozy Apartment", city="Rome", price_per_night=110.00, available_start_date=datetime.date(2026, 1, 1), available_end_date=datetime.date(2026, 12, 31)),
-            Hotel(name="Rome Luxury Spa Hotel", city="Rome", price_per_night=320.00, available_start_date=datetime.date(2026, 1, 1), available_end_date=datetime.date(2026, 12, 31))
-        ]
+        print("Generazione procedurale degli Hotel...")
+        hotels = generate_hotels()
         db.add_all(hotels)
         
-        print("Inserimento Attività (Espanso)...")
-        activities = [
-            # ======================== TOKYO ========================
-            Activity(
-                title="Tasting Tour di Street Food a Shibuya",
-                city="Tokyo", country="Japan", price=60.00,
-                description="Esplora i vicoli nascosti di Shibuya (Nonbei Yokocho) assaggiando yakitori, takoyaki, okonomiyaki e sushi fresco. Guidato da un esperto gastronomico locale. Ideale per buongustai e amanti della nightlife.",
-                target_audience="giovani, coppie, buongustai", available_months="1,2,3,4,5,6,7,8,9,10,11,12"
-            ),
-            Activity(
-                title="Lezione di Spada Samurai e Filosofia Kenjutsu",
-                city="Tokyo", country="Japan", price=85.00,
-                description="Impara le antiche posture, la disciplina mentale e le tecniche di taglio con la katana da un autentico maestro samurai. Include la vestizione del costume hakama tradizionale. Ideale per chi cerca cultura, arti marziali e storia.",
-                target_audience="giovani, sportivi, cultura", available_months="1,2,3,4,5,6,7,8,9,10,11,12"
-            ),
-            Activity(
-                title="Relax e Bagno Termale Onsen a Hakone",
-                city="Tokyo", country="Japan", price=110.00,
-                description="Una giornata di relax assoluto in un onsen tradizionale (bagno termale vulcanico) all'aperto, con spettacolare vista sul Monte Fuji. Include pranzo Kaiseki a più portate. Esperienza rigenerante immersa nella natura.",
-                target_audience="coppie, relax, natura", available_months="1,2,3,4,5,6,7,8,9,10,11,12"
-            ),
-            Activity(
-                title="Tour Anime, Manga e Cultura Otaku ad Akihabara",
-                city="Tokyo", country="Japan", price=35.00,
-                description="Passeggia per il quartiere elettrico di Akihabara con una guida Otaku locale. Scopri i migliori negozi di action figures, manga rari, retro-gaming e fermati a bere una bevanda in un bizzarro Maid Café.",
-                target_audience="giovani, famiglie, solitari", available_months="1,2,3,4,5,6,7,8,9,10,11,12"
-            ),
-            Activity(
-                title="Cerimonia del Tè Matcha ad Asakusa",
-                city="Tokyo", country="Japan", price=45.00,
-                description="Scopri l'armonia della cerimonia del tè guidato da un maestro certificato nel quartiere storico di Asakusa. Imparerai i gesti e la filosofia zen dietro la preparazione del tè matcha e assaggerai dolci tradizionali wagashi.",
-                target_audience="famiglie, cultura, relax", available_months="1,2,3,4,5,6,7,8,9,10,11,12"
-            ),
-            
-            # ======================== PARIGI ========================
-            Activity(
-                title="Crociera sulla Senna con cena gourmet romantica",
-                city="Paris", country="France", price=130.00,
-                description="Una crociera romantica sul fiume Senna. Cena di 3 portate preparata a bordo con ingredienti stagionali, musica dal vivo in sottofondo e vista privilegiata sulla Tour Eiffel, sul Museo d'Orsay e Notre Dame illuminate.",
-                target_audience="coppie, relax", available_months="4,5,6,7,8,9,10"
-            ),
-            Activity(
-                title="Tour guidato salta-fila del Museo del Louvre",
-                city="Paris", country="France", price=55.00,
-                description="Scopri la Gioconda, la Venere di Milo e le spettacolari collezioni egizie con una guida esperta di storia dell'arte che ti mostrerà i capolavori principali evitando le folle. Un'immersione nella cultura mondiale.",
-                target_audience="famiglie, cultura", available_months="1,2,3,4,5,6,7,8,9,10,11,12"
-            ),
-            Activity(
-                title="Corso di pasticceria parigina: Macarons e Croissants",
-                city="Paris", country="France", price=70.00,
-                description="Impara i segreti della pasticceria francese con un pasticcere professionista nel centro di Parigi. Preparerai macarons colorati e croissants sfogliati croccanti, da poter poi rifare a casa.",
-                target_audience="famiglie, coppie, buongustai", available_months="1,2,3,4,5,6,7,8,9,10,11,12"
-            ),
-            Activity(
-                title="Spettacolo e Champagne allo storico Moulin Rouge",
-                city="Paris", country="France", price=165.00,
-                description="Trascorri una serata leggendaria a Montmartre assistendo allo spettacolo 'Féerie' del cabaret Moulin Rouge. Ammira i costumi piumati, le ballerine di Can-Can e sorseggia champagne d'annata in un'atmosfera scintillante.",
-                target_audience="coppie, giovani, nightlife", available_months="1,2,3,4,5,6,7,8,9,10,11,12"
-            ),
-            
-            # ======================== NEW YORK ========================
-            Activity(
-                title="Volo adrenalinico in Elicottero sopra Manhattan",
-                city="New York", country="United States", price=240.00,
-                description="Sorvola i grattacieli di New York, Central Park, la Statua della Libertà e l'Empire State Building in elicottero. Emozione indescrivibile e vista aerea spettacolare per foto uniche e indimenticabili.",
-                target_audience="giovani, avventura, coppie", available_months="1,2,3,4,5,6,7,8,9,10,11,12"
-            ),
-            Activity(
-                title="Tour in bicicletta a Central Park e Brooklyn Bridge",
-                city="New York", country="United States", price=40.00,
-                description="Noleggia una bici ed esplora i sentieri storici di Central Park per poi pedalare attraverso il famoso ponte di Brooklyn con una guida locale. Perfetto per sportivi ed esploratori urbani.",
-                target_audience="sportivi, giovani, famiglie", available_months="3,4,5,6,7,8,9,10,11"
-            ),
-            Activity(
-                title="Musical a Broadway: Biglietto Premium e Cena",
-                city="New York", country="United States", price=155.00,
-                description="Vivi la magia del teatro di New York con un biglietto riservato per uno dei celebri musical di Broadway (es. Il Re Leone o Aladdin), preceduto da una deliziosa cena di due portate in un ristorante selezionato a Times Square.",
-                target_audience="famiglie, cultura, coppie", available_months="1,2,3,4,5,6,7,8,9,10,11,12"
-            ),
-            Activity(
-                title="Tour del Memoriale dell'11 Settembre e Osservatorio One World",
-                city="New York", country="United States", price=55.00,
-                description="Visita guidata a Ground Zero, le vasche riflettenti dell'11 Settembre e ingresso prioritario all'Osservatorio One World Trade Center per godere della vista panoramica a 360 gradi più alta di New York.",
-                target_audience="cultura, famiglie", available_months="1,2,3,4,5,6,7,8,9,10,11,12"
-            ),
-            
-            # ======================== LONDRA ========================
-            Activity(
-                title="Tour dei Pub Storici e Jack lo Squartatore",
-                city="London", country="United Kingdom", price=35.00,
-                description="Esplora i vicoli fumosi dell'East End di Londra al tramonto, ascoltando le storie di Jack lo Squartatore e fermandoti in tre storici pub storici del XVII secolo per degustare birre tradizionali.",
-                target_audience="giovani, nightlife, cultura", available_months="1,2,3,4,5,6,7,8,9,10,11,12"
-            ),
-            Activity(
-                title="Tè Pomeridiano tradizionale su Bus Vintage a due Piani",
-                city="London", country="United Kingdom", price=52.00,
-                description="Sali a bordo di un classico autobus rosso a due piani degli anni '60 per ammirare il Big Ben, Westminster Abbey e Harrods, gustando un classico Afternoon Tea con scones, marmellata, panna montata e pasticcini.",
-                target_audience="famiglie, coppie, relax", available_months="1,2,3,4,5,6,7,8,9,10,11,12"
-            ),
-            Activity(
-                title="Tour Harry Potter e Warner Bros Studio Tour",
-                city="London", country="United Kingdom", price=95.00,
-                description="Trasporto in bus da Londra centro e biglietto d'ingresso per gli studi della Warner Bros. Cammina nella Sala Grande di Hogwarts, esplora Diagon Alley ed assaggia la celebre Burrobirra.",
-                target_audience="famiglie, giovani, cultura", available_months="1,2,3,4,5,6,7,8,9,10,11,12"
-            ),
-            Activity(
-                title="Ingresso Prioritario al London Eye con Champagne",
-                city="London", country="United Kingdom", price=75.00,
-                description="Evita le lunghe attese ed entra in una delle cabine panoramiche della gigantesca ruota di Londra. Ammira lo skyline della città da 135 metri d'altezza sorseggiando un calice di champagne Pommery Brut Royal.",
-                target_audience="coppie, relax", available_months="1,2,3,4,5,6,7,8,9,10,11,12"
-            ),
-            
-            # ======================== REYKJAVIK ========================
-            Activity(
-                title="Caccia guidata all'Aurora Boreale in Super Jeep",
-                city="Reykjavik", country="Iceland", price=125.00,
-                description="Parti da Reykjavik di notte a bordo di una potente Jeep 4x4 guidata da un fotografo esperto per cacciare le magiche luci dell'aurora boreale lontano dall'inquinamento luminoso della città. Cioccolata calda inclusa.",
-                target_audience="avventura, coppie, natura", available_months="9,10,11,12,1,2,3,4"
-            ),
-            Activity(
-                title="Tour del Circolo d'Oro e Bagno alla Laguna Segreta",
-                city="Reykjavik", country="Iceland", price=98.00,
-                description="Esplora le meraviglie naturali del Parco Nazionale Thingvellir, i geyser spumeggianti di Geysir e la maestosa cascata Gullfoss. Concludi la giornata rilassandoti nelle calde acque termali della Laguna Segreta.",
-                target_audience="famiglie, relax, natura", available_months="1,2,3,4,5,6,7,8,9,10,11,12"
-            ),
-            Activity(
-                title="Trekking su Ghiacciaio ed Esplorazione Grotte di Ghiaccio",
-                city="Reykjavik", country="Iceland", price=160.00,
-                description="Un'escursione avventurosa con ramponi e piccozza sul ghiacciaio Vatnajökull. Visita le spettacolari grotte di ghiaccio azzurro naturale modellate dall'acqua. Perfetto per gli amanti degli sport estremi e della natura incontaminata.",
-                target_audience="sportivi, avventura, natura", available_months="11,12,1,2,3"
-            ),
-            Activity(
-                title="Whale Watching: Avvistamento Balene e Delfini",
-                city="Reykjavik", country="Iceland", price=75.00,
-                description="Naviga nella baia di Faxaflói in barca per avvistare balenottere, megattere, delfini dal becco bianco e pulcinelle di mare nel loro habitat naturale, con commenti scientifici della guida marina a bordo.",
-                target_audience="famiglie, natura", available_months="4,5,6,7,8,9,10"
-            ),
-            
-            # ======================== SYDNEY ========================
-            Activity(
-                title="Corso di Surf a Bondi Beach per Principianti",
-                city="Sydney", country="Australia", price=65.00,
-                description="Impara a cavalcare le famose onde di Bondi Beach con un istruttore professionista certificato. Include noleggio di muta termica e tavola da surf speciale soft-top per facilitare l'apprendimento. Ideale per amanti dello sport.",
-                target_audience="sportivi, giovani, avventura", available_months="9,10,11,12,1,2,3,4,5"
-            ),
-            Activity(
-                title="Scalata Adrenalinica sul Sydney Harbour Bridge",
-                city="Sydney", country="Australia", price=195.00,
-                description="Scalata guidata in totale sicurezza fino alla cima della campata del ponte di Sydney, ad un'altezza di 134 metri. Una vista mozzafiato a 360 gradi sulla Sydney Opera House, la baia ed i quartieri circostanti.",
-                target_audience="giovani, avventura, coppie", available_months="1,2,3,4,5,6,7,8,9,10,11,12"
-            ),
-            Activity(
-                title="Escursione di una Giornata alle Blue Mountains",
-                city="Sydney", country="Australia", price=110.00,
-                description="Unisciti a una gita di un giorno per esplorare le spettacolari Blue Mountains (patrimonio UNESCO). Visita la formazione rocciosa delle Three Sisters, cammina in foreste pluviali giurassiche e ammira cascate spumeggianti.",
-                target_audience="natura, famiglie, relax", available_months="1,2,3,4,5,6,7,8,9,10,11,12"
-            ),
-            
-            # ======================== ROMA ========================
-            Activity(
-                title="Corso di pasta fresca e tiramisù a Trastevere",
-                city="Rome", country="Italy", price=65.00,
-                description="Impara a impastare e stendere le fettuccine fatte in casa e prepara il tiramisù perfetto seguendo la ricetta di una nonna romana. Vino locale e assaggi inclusi! Un'esperienza culinaria calda e divertente.",
-                target_audience="famiglie, coppie, buongustai", available_months="1,2,3,4,5,6,7,8,9,10,11,12"
-            ),
-            Activity(
-                title="Tour notturno sotterraneo del Colosseo e dei Fori",
-                city="Rome", country="Italy", price=80.00,
-                description="Esplora il Colosseo sotto la luna, scendendo nei suoi sotterranei solitamente chiusi al pubblico, dove attendevano i gladiatori. Atmosfera suggestiva e fresca fuori dal caldo diurno. Perfetto per gli appassionati di cultura e archeologia.",
-                target_audience="cultura, coppie, famiglie", available_months="5,6,7,8,9,10"
-            ),
-            Activity(
-                title="Trekking avventura nella Riserva di Decima Malafede",
-                city="Rome", country="Italy", price=30.00,
-                description="Una camminata immersa nella macchia mediterranea appena fuori Roma, esplorando canyon di tufo e antiche rovine romane nascoste nella vegetazione. Ideale per amanti dello sport e dell'avventura selvaggia.",
-                target_audience="sportivi, avventura, giovani", available_months="3,4,5,6,7,8,9,10,11"
-            ),
-            Activity(
-                title="Tour Gastronomico nel Ghetto Ebraico e Campo de' Fiori",
-                city="Rome", country="Italy", price=48.00,
-                description="Unisciti a una passeggiata gourmet nel centro storico di Roma. Assaggia carciofi alla giudia, pizza bianca con mortadella, supplì caldi e gelato artigianale biologico, visitando monumenti nascosti con un esperto locale.",
-                target_audience="buongustai, famiglie, coppie", available_months="1,2,3,4,5,6,7,8,9,10,11,12"
-            ),
-            Activity(
-                title="Visita Esclusiva ai Musei Vaticani all'Alba",
-                city="Rome", country="Italy", price=95.00,
-                description="Entra nei Musei Vaticani prima dell'apertura ufficiale al pubblico. Ammira le Stanze di Raffaello e la Cappella Sistina in totale silenzio e tranquillità senza folle, concludendo con una ricca colazione nel Cortile della Pigna.",
-                target_audience="cultura, coppie, relax", available_months="1,2,3,4,5,6,7,8,9,10,11,12"
-            )
-        ]
+        print("Generazione procedurale delle Attività Stile GetYourGuide...")
+        activities = generate_activities()
         db.add_all(activities)
         
         db.commit()

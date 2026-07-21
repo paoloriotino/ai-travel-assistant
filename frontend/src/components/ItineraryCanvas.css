@@ -1,0 +1,175 @@
+/* ═══════════════════════════════════════════════════════
+   ItineraryCanvas — Canvas laterale per l'itinerario live
+   ═══════════════════════════════════════════════════════ */
+
+.itinerary-canvas {
+  width: 380px;
+  background: var(--color-surface);
+  border-left: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.itinerary-canvas__resize-handle {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  cursor: col-resize;
+  z-index: 10;
+  transition: background 0.2s;
+}
+
+.itinerary-canvas__resize-handle:hover,
+.itinerary-canvas__resize-handle:active {
+  background: var(--color-golden-hour);
+}
+
+.itinerary-canvas__header {
+  padding: var(--space-4);
+  background: var(--color-deep-ocean);
+  border-bottom: 1px solid var(--color-border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.itinerary-canvas__title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-family: var(--font-display);
+  font-size: var(--text-base);
+  font-weight: 700;
+  color: var(--color-cloud);
+  margin: 0;
+}
+
+.itinerary-canvas__subtitle {
+  font-size: var(--text-xs);
+  color: var(--color-mist);
+}
+
+.itinerary-canvas__content {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* Empty State */
+.itinerary-canvas__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  text-align: center;
+  color: var(--color-mist);
+  padding: var(--space-6);
+  gap: var(--space-3);
+}
+
+.itinerary-canvas__empty-icon {
+  font-size: 2.5rem;
+  opacity: 0.6;
+}
+
+/* Destination Banner */
+.itinerary-canvas__banner {
+  background: linear-gradient(135deg, rgba(30, 58, 95, 0.6), rgba(11, 18, 33, 0.8));
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  position: relative;
+}
+
+.itinerary-canvas__dest {
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--color-golden-hour);
+  margin: 0 0 var(--space-1) 0;
+}
+
+.itinerary-canvas__price-badge {
+  display: inline-block;
+  background: var(--color-golden-hour);
+  color: var(--color-midnight);
+  font-weight: 700;
+  font-size: 0.85rem;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  margin-top: var(--space-2);
+}
+
+/* Items */
+.itinerary-canvas__section {
+  background: rgba(11, 18, 33, 0.4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-3);
+}
+
+.itinerary-canvas__section-title {
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-mist);
+  margin-bottom: var(--space-1);
+}
+
+.itinerary-canvas__section-content {
+  font-size: var(--text-sm);
+  color: var(--color-cloud);
+}
+
+/* Timeline Day-by-Day */
+.itinerary-canvas__timeline {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.itinerary-canvas__day-card {
+  position: relative;
+  padding-left: var(--space-4);
+  border-left: 2px solid var(--color-golden-hour);
+}
+
+.itinerary-canvas__day-title {
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--color-cloud);
+  margin-bottom: var(--space-1);
+}
+
+.itinerary-canvas__day-activities {
+  margin: 0;
+  padding-left: var(--space-3);
+  font-size: 0.82rem;
+  color: var(--color-mist);
+}
+
+.itinerary-canvas__day-activities li {
+  margin-bottom: 2px;
+}
+
+/* Responsive */
+@media (max-width: 1024px) {
+  .itinerary-canvas {
+    position: fixed;
+    right: 0;
+    top: 60px;
+    bottom: 0;
+    z-index: 50;
+    box-shadow: -4px 0 20px rgba(0, 0, 0, 0.5);
+  }
+}

@@ -15,15 +15,20 @@ def get_embeddings():
     """Inizializza o restituisce il modello di embeddings di HuggingFace"""
     global _embeddings
     if _embeddings is None:
-        # Determina il device in base alla variabile d'ambiente USE_GPU (default: "0" / CPU)
-        use_gpu = os.environ.get("USE_GPU", "0") == "1"
-        device = "cuda" if (use_gpu and torch.cuda.is_available()) else "cpu"
+        # Determina il device: auto-detect CUDA (RTX 3060) se disponibile, a meno che USE_GPU non sia impostato a "0"
+        use_gpu_env = os.environ.get("USE_GPU", "auto").lower()
+        if use_gpu_env == "0":
+            device = "cpu"
+        elif torch.cuda.is_available():
+            device = "cuda"
+        else:
+            device = "cpu"
         
         print(f"Caricamento del modello di embeddings: {EMBEDDINGS_MODEL} (Device: {device.upper()})...")
         if device == "cuda":
-            print(f"GPU rilevata: {torch.cuda.get_device_name(0)}")
-        elif use_gpu and not torch.cuda.is_available():
-            print("Attenzione: Flag --gpu specificato ma CUDA non è disponibile in PyTorch. Fallback su CPU.")
+            print(f"GPU NVIDIA Rilevata ed in uso: {torch.cuda.get_device_name(0)}")
+        elif use_gpu_env == "1" and not torch.cuda.is_available():
+            print("Attenzione: Flag USE_GPU=1 specificato ma CUDA non è disponibile in PyTorch. Fallback su CPU.")
             
         # HuggingFaceEmbeddings scaricherà il modello (~120MB) localmente alla prima chiamata
         _embeddings = HuggingFaceEmbeddings(

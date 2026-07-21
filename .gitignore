@@ -223,3 +223,8 @@ backend/db/
 
 *.DS_Store
 .agents
+
+# Frontend
+node_modules/
+frontend/dist/
+tasks
