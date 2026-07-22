@@ -13,8 +13,6 @@ export default function ChatMessage({ message }: ChatMessageProps) {
     minute: '2-digit',
   });
 
-  const itinerary = message.structured_data?.itinerary;
-
   return (
     <div className={`chat-message chat-message--${message.role}`}>
       <div className="chat-message__avatar">

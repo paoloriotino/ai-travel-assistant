@@ -20,17 +20,32 @@ export interface DayItinerary {
   activities: string[];
 }
 
+export interface NightStay {
+  night: number;
+  hotel_summary: string;
+}
+
+export interface TravelRequirements {
+  budget_total?: number | null;
+  destination_country?: string | null;
+  preferred_activities: string[];
+  travel_month?: string | null;
+}
+
 export interface StructuredItinerary {
   destination: string;
   duration_days?: number;
-  flight_summary?: string;
+  flight_outbound_summary?: string | null;
+  flight_return_summary?: string | null;
   hotel_summary?: string;
+  nightly_stays?: NightStay[];
   estimated_total_price?: number;
   daily_plan: DayItinerary[];
 }
 
 export interface AgentStructuredResponse {
   reply: string;
+  requirements?: TravelRequirements | null;
   itinerary?: StructuredItinerary | null;
   follow_up_questions?: string[];
 }
@@ -61,6 +76,7 @@ export interface Message {
 
 /** Dettagli dell'itinerario di una prenotazione */
 export interface BookingDetails {
+  destination: string;
   flight: string;
   hotel: string;
   activities: string;

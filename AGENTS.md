@@ -42,7 +42,7 @@ Per tutta la logica conversazionale dell'assistente di viaggio, l'agente deve se
   - Impostare limiti di ricorsione (`recursion_limit: 10`) per evitare loop infiniti dell'LLM in produzione.
 - **Structured Output**: Richiedere risposte strutturate tramite `response_format` o `.with_structured_output()` per estrarre itinerari, dettagli utente o preferenze in formati JSON tipizzati (usando Pydantic o Zod).
 
-### C. Generatore di Specifiche (`spec-generator`)
+### C. Generatore di Specifiche (`task-generator`)
 Prima di iniziare compiti complessi, l'agente deve strutturare il lavoro trasformando appunti grezzi in task specifici.
 - **Procedura**:
   1. Elencare i file `task.md` storici dentro la cartella `tasks/` (se esistenti) usando pattern `glob`.
@@ -101,6 +101,7 @@ graph TD
    - Includere domande aperte e attendere l'approvazione esplicita dell'utente prima di toccare il codice di produzione.
 3. **Esecuzione e Test**:
    - Creare o aggiornare `task.md` per tracciare lo stato di avanzamento (`[ ]` -> `[/]` -> `[x]`).
+    - Aggiornare man mano gli acceptance criteria passando i checkbox completati da `[ ]` a `[x]` durante l'implementazione.
    - Implementare i moduli backend e i componenti frontend a piccoli passi logici.
    - Eseguire i test automatici o i comandi di build locali per verificare che non ci siano errori sintattici o di runtime.
 4. **Verifica e Documentazione**:

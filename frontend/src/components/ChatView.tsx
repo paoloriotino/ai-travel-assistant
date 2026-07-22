@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo, type MouseEvent } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { sendMessage, resumeBooking, fetchChatHistory, fetchThreads, deleteThread } from '../services/api';
-import type { Message, InterruptInfo, ThreadItem } from '../types';
+import type { Message, InterruptInfo, ThreadItem, Booking } from '../types';
 import ChatMessage from './ChatMessage';
 import MessageInput from './MessageInput';
 import TypingIndicator from './TypingIndicator';
@@ -30,24 +30,41 @@ function getOrCreateThreadId(): string {
   return id;
 }
 
-export default function ChatView() {
+interface ChatViewProps {
+  modifyBooking?: Booking | null;
+  onModifyHandled?: () => void;
+}
+
+export default function ChatView({ modifyBooking, onModifyHandled }: ChatViewProps = {}) {
   const [messages, setMessages] = useState<Message[]>([WELCOME_MESSAGE]);
   const [threads, setThreads] = useState<ThreadItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isResuming, setIsResuming] = useState(false);
   const [interruptInfo, setInterruptInfo] = useState<InterruptInfo | null>(null);
-  const [threadId, setThreadId] = useState(getOrCreateThreadId);
+  
+  const [threadId, setThreadId] = useState(() => {
+    if (modifyBooking) {
+      const newId = uuidv4();
+      localStorage.setItem(THREAD_KEY, newId);
+      return newId;
+    }
+    return getOrCreateThreadId();
+  });
+  
+  const [isHistoryLoaded, setIsHistoryLoaded] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Calcola l'itinerario corrente più recente presente tra i messaggi
-  const currentItinerary = useMemo(() => {
+  const currentStructuredData = useMemo(() => {
     for (let i = messages.length - 1; i >= 0; i--) {
-      if (messages[i].structured_data?.itinerary) {
-        return messages[i].structured_data!.itinerary!;
+      if (messages[i].structured_data) {
+        return messages[i].structured_data!;
       }
     }
     return null;
   }, [messages]);
+
+  const currentItinerary = currentStructuredData?.itinerary ?? null;
 
   // Caricamento dell'elenco delle sessioni salvate (sidebar)
   const loadThreadsList = useCallback(async () => {
@@ -66,6 +83,8 @@ export default function ChatView() {
   // Caricamento storico messaggi dal backend per il threadId attivo
   useEffect(() => {
     let isMounted = true;
+    setIsHistoryLoaded(false);
+    
     async function loadHistory() {
       try {
         const historyRes = await fetchChatHistory(threadId);
@@ -86,6 +105,10 @@ export default function ChatView() {
         if (isMounted) {
           setMessages([{ ...WELCOME_MESSAGE, id: uuidv4(), timestamp: new Date() }]);
         }
+      } finally {
+        if (isMounted) {
+          setIsHistoryLoaded(true);
+        }
       }
     }
     loadHistory();
@@ -102,6 +125,23 @@ export default function ChatView() {
   useEffect(() => {
     scrollToBottom();
   }, [messages, isLoading, scrollToBottom]);
+
+  // Gestione intent di modifica da Dashboard
+  useEffect(() => {
+    if (modifyBooking && !isLoading && isHistoryLoaded) {
+      const msg = `Voglio modificare la mia prenotazione #${modifyBooking.id}.
+Dettagli attuali:
+- Destinazione: ${modifyBooking.details.destination || 'Non specificata'}
+- Volo: ${modifyBooking.details.flight || 'Nessuno'}
+- Hotel: ${modifyBooking.details.hotel || 'Nessuno'}
+- Attività: ${modifyBooking.details.activities || 'Nessuna'}`;
+      handleSend(msg);
+      if (onModifyHandled) {
+        onModifyHandled();
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modifyBooking, isLoading, isHistoryLoaded]);
 
   const handleSend = async (text: string) => {
     const userMessage: Message = {
@@ -282,7 +322,7 @@ export default function ChatView() {
         <MessageInput onSend={handleSend} disabled={isLoading || interruptInfo !== null} />
       </div>
 
-      <ItineraryCanvas itinerary={currentItinerary} />
+      <ItineraryCanvas itinerary={currentItinerary} structuredData={currentStructuredData} />
 
       {interruptInfo && (
         <BookingApprovalModal

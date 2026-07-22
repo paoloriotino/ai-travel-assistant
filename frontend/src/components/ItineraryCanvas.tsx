@@ -1,13 +1,14 @@
 import { useState, useCallback, type MouseEvent } from 'react';
-import type { StructuredItinerary } from '../types';
+import type { AgentStructuredResponse, StructuredItinerary } from '../types';
 import './ItineraryCanvas.css';
 
 interface ItineraryCanvasProps {
   itinerary: StructuredItinerary | null;
+  structuredData?: AgentStructuredResponse | null;
   onClose?: () => void;
 }
 
-export default function ItineraryCanvas({ itinerary }: ItineraryCanvasProps) {
+export default function ItineraryCanvas({ itinerary, structuredData }: ItineraryCanvasProps) {
   const [width, setWidth] = useState<number>(380);
 
   const startResizing = useCallback((mouseDownEvent: MouseEvent) => {
@@ -59,6 +60,26 @@ export default function ItineraryCanvas({ itinerary }: ItineraryCanvasProps) {
       </div>
 
       <div className="itinerary-canvas__content">
+        {structuredData?.requirements && (
+          <div className="itinerary-canvas__section">
+            <div className="itinerary-canvas__section-title">🧾 Requisiti viaggio</div>
+            <div className="itinerary-canvas__section-content">
+              {structuredData.requirements.budget_total != null && (
+                <div>Budget totale: €{structuredData.requirements.budget_total.toFixed(2)}</div>
+              )}
+              {structuredData.requirements.destination_country && (
+                <div>Nazione: {structuredData.requirements.destination_country}</div>
+              )}
+              {structuredData.requirements.travel_month && (
+                <div>Mese: {structuredData.requirements.travel_month}</div>
+              )}
+              {structuredData.requirements.preferred_activities.length > 0 && (
+                <div>Attività: {structuredData.requirements.preferred_activities.join(', ')}</div>
+              )}
+            </div>
+          </div>
+        )}
+
         <div className="itinerary-canvas__banner">
           <h2 className="itinerary-canvas__dest">
             📍 {itinerary.destination.startsWith('Viaggio a') ? itinerary.destination : `Viaggio a ${itinerary.destination}`}
@@ -75,11 +96,16 @@ export default function ItineraryCanvas({ itinerary }: ItineraryCanvasProps) {
           )}
         </div>
 
-        {itinerary.flight_summary && (
+        {(itinerary.flight_outbound_summary || itinerary.flight_return_summary) && (
           <div className="itinerary-canvas__section">
-            <div className="itinerary-canvas__section-title">✈️ Volo Selezionato</div>
+            <div className="itinerary-canvas__section-title">✈️ Tratta di viaggio</div>
             <div className="itinerary-canvas__section-content">
-              {itinerary.flight_summary}
+              {itinerary.flight_outbound_summary && (
+                <div><strong>Andata:</strong> {itinerary.flight_outbound_summary}</div>
+              )}
+              {itinerary.flight_return_summary && (
+                <div><strong>Ritorno:</strong> {itinerary.flight_return_summary}</div>
+              )}
             </div>
           </div>
         )}
@@ -89,6 +115,19 @@ export default function ItineraryCanvas({ itinerary }: ItineraryCanvasProps) {
             <div className="itinerary-canvas__section-title">🏨 Alloggio Selezionato</div>
             <div className="itinerary-canvas__section-content">
               {itinerary.hotel_summary}
+            </div>
+          </div>
+        )}
+
+        {itinerary.nightly_stays && itinerary.nightly_stays.length > 0 && (
+          <div className="itinerary-canvas__section">
+            <div className="itinerary-canvas__section-title">🛏️ Pernottamenti</div>
+            <div className="itinerary-canvas__section-content">
+              {itinerary.nightly_stays.map((stay) => (
+                <div key={stay.night} style={{ marginBottom: '0.5rem' }}>
+                  <strong>Notte {stay.night}:</strong> {stay.hotel_summary}
+                </div>
+              ))}
             </div>
           </div>
         )}

@@ -7,6 +7,7 @@ per gestire sessioni di chat persistenti e approvazione delle prenotazioni.
 
 import os
 import sqlite3
+from typing import Any
 from dotenv import load_dotenv
 
 from langchain.agents import create_agent
@@ -15,12 +16,13 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.checkpoint.sqlite import SqliteSaver
 from langchain_core.messages import HumanMessage, AIMessage
 
-from backend.app.schemas.chat import AgentStructuredResponse
+from backend.app.schemas.chat import AgentStructuredResponse, TravelRequirements, StructuredItinerary
 from backend.app.services.tools import (
     search_activities,
     search_flights,
     search_hotels,
     book_trip,
+    modify_booking,
 )
 
 # Carica le variabili d'ambiente dal file .env nella root del progetto
@@ -36,14 +38,12 @@ if not _ls_key or "chiave" in _ls_key or "your" in _ls_key:
 
 # Percorso per il database SQLite dei checkpoint di chat
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CHECKPOINTS_PATH = os.path.join(BASE_DIR, "checkpoints.db")
+CHECKPOINTS_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "db", "checkpoints.db")
 
 # ────────────────────────────────────────────────────────────────
 # Configurazione del modello LLM
 # ────────────────────────────────────────────────────────────────
-_LLM_MODEL = os.getenv("LLM_MODEL", "gemini-flash-latest")
-
-
+ 
 def _get_llm():
     """Restituisce l'istanza del modello LLM (Google Gemini o Ollama locale) in base a LLM_PROVIDER in .env."""
     provider = os.getenv("LLM_PROVIDER", "google").lower()
@@ -70,7 +70,7 @@ def _get_llm():
             "Per usare Google Gemini, crea un file .env con GOOGLE_API_KEY=la_tua_chiave. "
             "Se vuoi usare Ollama in locale, imposta LLM_PROVIDER=ollama"
         )
-    model_name = os.getenv("LLM_MODEL", "gemini-1.5-pro")
+    model_name = os.getenv("LLM_MODEL", "gemini-flash-lite-latest")
 
     primary_llm = ChatGoogleGenerativeAI(
         model=model_name,
@@ -115,14 +115,22 @@ Il tuo compito è aiutare gli utenti a pianificare viaggi completi: voli, hotel 
    - `search_flights` per i voli disponibili.
    - `search_hotels` per gli alloggi.
    - `search_activities` per esperienze e tour (ricerca semantica).
+   - `modify_booking` per apportare modifiche a prenotazioni esistenti.
 3. **Presentazione delle opzioni come elenco**: Quando proponi o elenchi opzioni (voli, alloggi o attività), presentale SEMPRE sotto forma di **lista numerata o elenco puntato chiaro** (es. `1. ✈️ ...`, `2. 🏨 ...`), evidenziando per ogni opzione i dettagli chiave (nome/rotta, prezzo, disponibilità) in modo che l'utente possa confrontarle a colpo d'occhio.
+3.a Se l'utente seleziona o conferma più attività, distribuiscile in modo sensato su più giorni del viaggio; evita di inserirle tutte nel primo giorno. Bilancia durata, orari e distanza tra le attività per creare un `daily_plan` realistico e fruibile.
 4. Quando l'utente è pronto a prenotare, riepiloga il viaggio completo (volo + hotel + attività)
-   e chiedi conferma esplicita prima di usare il tool `book_trip`.
+   e chiedi conferma esplicita prima di usare il tool `book_trip`. 
+   Se l'utente vuole MODIFICARE una prenotazione esistente, chiedigli l'ID e cosa vuole cambiare. **NON chiamare subito il tool modify_booking!** Usa prima i tool di ricerca per trovare e proporre le alternative richieste. Solo dopo che l'utente ha scelto le nuove opzioni, chiama `modify_booking`.
 5. **NON inventare** informazioni su voli, prezzi o disponibilità. Usa SOLO i dati dei tool.
 6. Se non trovi risultati, suggerisci alternative o chiedi di modificare i criteri.
 7. Fai domande di follow-up nel testo della risposta per capire meglio le preferenze dell'utente.
 8. **Azioni rapide suggerite (follow_up_questions)**: Popola il campo `follow_up_questions` con 2-3 **frasi o comandi pronti che L'UTENTE può inviarti con un solo click** (es. "Cerca voli da Roma a Tokyo", "Mostrami gli hotel a Parigi", "Procedi con la prenotazione", "Proponi altre attività"). NON inserire domande fatte da te all'utente!
 9. **Itinerario nella scheda a destra**: L'itinerario del viaggio viene visualizzato ed aggiornato in tempo reale esclusivamente nella scheda laterale a destra del frontend tramite l'oggetto `itinerary`. Pertanto, nel testo della tua risposta conversazionale (`reply`), rispondi in modo empatico proponendo e spiegando le opzioni trovate, **SENZA riscrivere o duplicare l'intero itinerario formattato in calce al messaggio**.
+10. **Requisiti utente strutturati**: Compila anche il campo `requirements` dell'output strutturato per catturare in modo progressivo budget totale, nazione di interesse, preferenze sulle attività e mese di viaggio. Aggiorna questi dati ogni volta che emergono in conversazione e non cancellare i valori già confermati.
+11. **Itinerario granulare**: Quando hai dati sufficienti, compila i campi `flight_outbound_summary`, `flight_return_summary` e `nightly_stays` oltre ai riepiloghi sintetici già esistenti. Ogni notte del viaggio deve avere il suo hotel o alloggio esplicitato in `nightly_stays`.
+12. **Rispondi sempre alla domanda specifica**: Se l'utente chiede solo di attività, cerca SOLO attività. NON cercare voli o hotel a meno che l'utente non lo chieda esplicitamente o tu non abbia già il suo consenso. Non cercare di costruire l'intero itinerario da solo al primo turno.
+13. **Evita loop infiniti**: NON chiamare MAI più tool a catena in modo ripetitivo o iterativo. Fai al massimo 1 o 2 chiamate ai tool. Appena ottieni i risultati (o anche se non ne trovi), DEVI fermarti e rispondere all'utente usando AgentStructuredResponse per mantenere viva la conversazione. Non provare a perfezionare la ricerca all'infinito.
+14. **Output Testuale Pulito**: Scrivi SOLO il testo della risposta discorsiva per l'utente. Assicurati di non "stampare" o "scrivere" mai la sintassi JSON (es. `,requirements:{...}`) nel corpo del testo! Tutte le informazioni strutturate (itinerari, requisiti) devono essere passate "dietro le quinte" chiamando la funzione apposita.
 
 ## Destinazioni disponibili
 Voli principalmente dagli hub italiani (Roma FCO, Milano MXP) verso oltre 40 destinazioni internazionali principali (tra cui Tokyo, Parigi, New York, Londra, Reykjavik, Sydney, Barcellona, Madrid, Berlino, Dubai, Bangkok, Singapore, Bali, Seul, Los Angeles, Miami, Rio de Janeiro, Buenos Aires, Marrakech, Venezia, Firenze, ecc.).
@@ -130,8 +138,10 @@ Voli principalmente dagli hub italiani (Roma FCO, Milano MXP) verso oltre 40 des
 ## Regole per l'output strutturato (itinerary in AgentStructuredResponse)
 Devi compilare l'oggetto `itinerary` in modo progressivo e incrementale durante la conversazione, per consentire all'utente di vedere la sua scheda viaggio aggiornarsi in tempo reale sul pannello laterale del frontend:
 1. **Destinazione**: Non appena l'utente indica la sua destinazione (es. Tokyo, Parigi, Barcellona), imposta immediatamente il campo `destination` dell'itinerario. Questa è l'informazione minima iniziale richiesta per attivare la scheda viaggio.
-2. **Aggiornamento progressivo**: Nelle risposte successive, man mano che cerchi voli o alloggi e il cliente mostra preferenza per uno di essi, o quando concordate una durata o un piano di attività, aggiorna immediatamente i campi corrispondenti nell'oggetto `itinerary` (`flight_summary`, `hotel_summary`, `duration_days`, `estimated_total_price`, `daily_plan`).
+2. **Aggiornamento progressivo**: Nelle risposte successive, man mano che cerchi voli o alloggi e il cliente mostra preferenza per uno di essi, o quando concordate una durata o un piano di attività, aggiorna immediatamente i campi corrispondenti nell'oggetto `itinerary` (`hotel_summary`, `duration_days`, `estimated_total_price`, `daily_plan`).
 3. **Persistenza dei dati**: Mantieni i dettagli precedentemente stabiliti. Ad esempio, se state discutendo delle attività o dell'hotel, non svuotare o cancellare i campi relativi al volo o alla destinazione precedentemente impostati; continua ad accumulare i dettagli confermati per mostrare lo stato consolidato in tempo reale.
+4. **Requisiti utente**: Se l'utente comunica budget, nazione, mese o preferenze sulle attività, salva subito tali dati in `requirements` e riusali nelle risposte successive per guidare la ricerca.
+5. **Dettaglio pernottamenti**: Se la durata del viaggio è nota, popola `nightly_stays` con una voce per ogni notte, usando hotel coerenti con disponibilità, città e budget.
 
 ## Tono
 Professionale ma caloroso. Usa emoji per rendere i messaggi vivaci.
@@ -170,7 +180,7 @@ def get_agent():
         checkpointer = get_checkpointer()
         provider = os.getenv("LLM_PROVIDER", "google").lower()
 
-        tools = [search_activities, search_flights, search_hotels, book_trip]
+        tools = [search_activities, search_flights, search_hotels, book_trip, modify_booking]
 
         # Per Ollama: non passare response_format perché .with_structured_output() è
         # incompatibile con il Tool Calling nativo dei modelli locali (qwen2.5, llama3, ecc.).
@@ -178,7 +188,7 @@ def get_agent():
         _response_format = AgentStructuredResponse if provider != "ollama" else None
 
         _agent = create_agent(
-            model=llm,
+            model=llm,  # type: ignore[arg-type]
             tools=tools,
             system_prompt=SYSTEM_PROMPT,
             response_format=_response_format,
@@ -187,6 +197,9 @@ def get_agent():
                 HumanInTheLoopMiddleware(
                     interrupt_on={
                         "book_trip": {
+                            "allowed_decisions": ["approve", "reject"],
+                        },
+                        "modify_booking": {
                             "allowed_decisions": ["approve", "reject"],
                         }
                     }
@@ -197,18 +210,102 @@ def get_agent():
 
 
 def _extract_text(content) -> str:
-    """Estrae sempre una stringa pulita anche se content è una lista di blocchi di testo."""
+    """Estrae sempre una stringa pulita anche se content è una lista di blocchi di testo o multimodali."""
+    text_content = ""
     if isinstance(content, str):
-        return content
-    if isinstance(content, list):
+        text_content = content
+    elif isinstance(content, list):
         text_parts = []
         for item in content:
             if isinstance(item, str):
                 text_parts.append(item)
-            elif isinstance(item, dict) and "text" in item:
+            elif isinstance(item, dict) and item.get("type") == "text" and "text" in item:
                 text_parts.append(item["text"])
-        return "".join(text_parts)
-    return str(content)
+        text_content = "".join(text_parts)
+    else:
+        text_content = str(content)
+        
+    # Pulizia di rimasugli JSON accidentali lasciati dai modelli leggeri (es. ",requirements:{...")
+    import re
+    # Rimuove tutto ciò che assomiglia a ",requirements:{" o simili alla fine della stringa
+    text_content = re.sub(r'[,]*\s*[\'"]?requirements[\'"]?\s*:.*$', '', text_content, flags=re.DOTALL | re.IGNORECASE)
+    text_content = re.sub(r'[,]*\s*[\'"]?itinerary[\'"]?\s*:.*$', '', text_content, flags=re.DOTALL | re.IGNORECASE)
+    return text_content.strip()
+
+
+
+
+def _get_previous_structured_response(thread_id: str, user_id: int) -> AgentStructuredResponse | None:
+    """Recupera l'ultimo structured response utile già presente nello stato della conversazione."""
+    agent = get_agent()
+    config = {"configurable": {"thread_id": thread_id, "user_id": user_id}}
+    state = agent.get_state(config)
+    if not state or not state.values or "messages" not in state.values:
+        return None
+
+    for msg in reversed(state.values["messages"]):
+        if isinstance(msg, AIMessage) or getattr(msg, "type", None) == "ai":
+            if hasattr(msg, "tool_calls") and msg.tool_calls:
+                for tc in reversed(msg.tool_calls):
+                    if tc.get("name") == "AgentStructuredResponse":
+                        args = tc.get("args", {})
+                        try:
+                            return AgentStructuredResponse(**args)
+                        except Exception:
+                            return None
+    return None
+
+
+def _merge_list_unique(existing: list[str], incoming: list[str]) -> list[str]:
+    merged: list[str] = []
+    for item in existing + incoming:
+        if item and item not in merged:
+            merged.append(item)
+    return merged
+
+
+def _merge_structured_response(
+    previous: AgentStructuredResponse | None,
+    current: AgentStructuredResponse,
+) -> AgentStructuredResponse:
+    """Unisce progressivamente il nuovo payload strutturato con quello già consolidato."""
+
+    if previous is None:
+        return current
+
+    previous_requirements = previous.requirements.model_dump() if previous.requirements else {}
+    current_requirements = current.requirements.model_dump() if current.requirements else {}
+    merged_requirements_data = {
+        "budget_total": current_requirements.get("budget_total", previous_requirements.get("budget_total")),
+        "destination_country": current_requirements.get("destination_country", previous_requirements.get("destination_country")),
+        "travel_month": current_requirements.get("travel_month", previous_requirements.get("travel_month")),
+        "preferred_activities": _merge_list_unique(
+            previous_requirements.get("preferred_activities", []),
+            current_requirements.get("preferred_activities", []),
+        ),
+    }
+    merged_requirements = TravelRequirements(**merged_requirements_data)
+
+    previous_itinerary = previous.itinerary.model_dump() if previous.itinerary else {}
+    current_itinerary = current.itinerary.model_dump() if current.itinerary else {}
+    merged_itinerary_data = {
+        "destination": current_itinerary.get("destination") or previous_itinerary.get("destination", ""),
+        "duration_days": current_itinerary.get("duration_days", previous_itinerary.get("duration_days")),
+        "flight_outbound_summary": current_itinerary.get("flight_outbound_summary", previous_itinerary.get("flight_outbound_summary")),
+        "flight_return_summary": current_itinerary.get("flight_return_summary", previous_itinerary.get("flight_return_summary")),
+        "hotel_summary": current_itinerary.get("hotel_summary", previous_itinerary.get("hotel_summary")),
+        "nightly_stays": current_itinerary.get("nightly_stays", previous_itinerary.get("nightly_stays", [])),
+        "estimated_total_price": current_itinerary.get("estimated_total_price", previous_itinerary.get("estimated_total_price")),
+        "daily_plan": current_itinerary.get("daily_plan", previous_itinerary.get("daily_plan", [])),
+    }
+    merged_itinerary = StructuredItinerary(**merged_itinerary_data) if merged_itinerary_data.get("destination") else None
+
+    return AgentStructuredResponse(
+        reply=current.reply or previous.reply,
+        requirements=merged_requirements,
+        itinerary=merged_itinerary,
+        follow_up_questions=_merge_list_unique(previous.follow_up_questions, current.follow_up_questions),
+    )
 
 
 def invoke_agent(message: str, thread_id: str, user_id: int) -> dict:
@@ -228,22 +325,31 @@ def invoke_agent(message: str, thread_id: str, user_id: int) -> dict:
     """
     actual_thread_id = f"user_{user_id}_{thread_id}"
     agent = get_agent()
+    previous_structured_response = _get_previous_structured_response(actual_thread_id, user_id)
     config = {
         "configurable": {"thread_id": actual_thread_id, "user_id": user_id},
         "metadata": {"thread_id": actual_thread_id, "user_id": user_id, "service": "travel-agent"},
         "recursion_limit": 15,
     }
 
+    content = message
+
     try:
         result = agent.invoke(
-            {"messages": [{"role": "user", "content": message}]},
+            {"messages": [{"role": "user", "content": content}]},
             config=config,
         )
     except Exception as e:
         err_str = str(e)
         if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str or "Quota" in err_str:
             return {
-                "reply": "⏳ Il servizio Google AI Studio ha raggiunto temporaneamente il limite di richieste del tier gratuito. Attendi circa 30-60 secondi prima di inviare un nuovo messaggio.",
+                "reply": "⏳ Il servizio AI ha raggiunto temporaneamente il limite di richieste del tier gratuito. Attendi circa 30-60 secondi prima di riprovare.",
+                "interrupted": False,
+                "interrupt_info": None,
+            }
+        if "Recursion limit" in err_str or "GraphRecursionError" in type(e).__name__:
+            return {
+                "reply": "⚠️ La tua richiesta ha generato un'analisi molto complessa e il processo si è interrotto. Prova a specificare meglio i parametri o a porre la domanda in modo più diretto.",
                 "interrupted": False,
                 "interrupt_info": None,
             }
@@ -288,7 +394,15 @@ def invoke_agent(message: str, thread_id: str, user_id: int) -> dict:
             structured_res = AgentStructuredResponse(**parsed)
         except Exception:
             # Fallback sicuro: tratta tutto il testo come reply conversazionale
-            structured_res = AgentStructuredResponse(reply=raw_text, itinerary=None, follow_up_questions=[])
+            structured_res = AgentStructuredResponse(
+                reply=raw_text,
+                requirements=None,
+                itinerary=None,
+                follow_up_questions=[],
+            )
+
+    if structured_res is not None:
+        structured_res = _merge_structured_response(previous_structured_response, structured_res)
 
     reply_text = structured_res.reply if structured_res and hasattr(structured_res, "reply") else _extract_text(result["messages"][-1].content)
 
@@ -316,6 +430,7 @@ def resume_agent(thread_id: str, approve: bool, user_id: int) -> dict:
 
     actual_thread_id = f"user_{user_id}_{thread_id}"
     agent = get_agent()
+    previous_structured_response = _get_previous_structured_response(actual_thread_id, user_id)
     config = {
         "configurable": {"thread_id": actual_thread_id, "user_id": user_id},
         "metadata": {"thread_id": actual_thread_id, "user_id": user_id, "service": "travel-agent"},
@@ -329,6 +444,8 @@ def resume_agent(thread_id: str, approve: bool, user_id: int) -> dict:
     )
 
     structured_res = result.get("structured_response")
+    if structured_res is not None:
+        structured_res = _merge_structured_response(previous_structured_response, structured_res)
     reply_text = structured_res.reply if structured_res and hasattr(structured_res, "reply") else _extract_text(result["messages"][-1].content)
 
     return {
@@ -359,7 +476,8 @@ def get_chat_history(thread_id: str, user_id: int) -> list[dict]:
         if isinstance(msg, HumanMessage) or getattr(msg, "type", None) == "human":
             text = _extract_text(msg.content)
             if text.strip():
-                history.append({"role": "user", "content": text})
+                item = {"role": "user", "content": text}
+                history.append(item)
         elif isinstance(msg, AIMessage) or getattr(msg, "type", None) == "ai":
             text = _extract_text(msg.content)
             structured_data = None
@@ -386,12 +504,16 @@ def get_chat_history(thread_id: str, user_id: int) -> list[dict]:
 
 def _extract_thread_title(history: list[dict]) -> str:
     """Ricava un titolo significativo per la conversazione (es. 'Viaggio a Parigi')."""
+    full_text = " ".join(m.get("content", "") for m in history if isinstance(m.get("content"), str)).lower()
+    is_modifica = "modificare la mia prenotazione" in full_text
+    prefix = "Modifica viaggio a" if is_modifica else "Viaggio a"
+
     for m in reversed(history):
         st = m.get("structured_data")
         if isinstance(st, dict):
             itin = st.get("itinerary")
             if isinstance(itin, dict) and itin.get("destination"):
-                return f"Viaggio a {itin['destination']}"
+                return f"{prefix} {itin['destination']}"
 
     destinations_map = {
         "tokyo": "Tokyo", "hnd": "Tokyo",
@@ -439,12 +561,11 @@ def _extract_thread_title(history: list[dict]) -> str:
         "firenze": "Firenze", "florence": "Firenze", "flr": "Firenze",
     }
 
-    full_text = " ".join(m.get("content", "") for m in history).lower()
     for key, city in destinations_map.items():
         if key in full_text:
-            return f"Viaggio a {city}"
+            return f"{prefix} {city}"
 
-    return "Nuovo viaggio"
+    return "Modifica viaggio" if is_modifica else "Nuovo viaggio"
 
 
 def get_all_threads(user_id: int) -> list[dict]:

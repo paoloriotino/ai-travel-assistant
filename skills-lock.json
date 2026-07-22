@@ -12,6 +12,12 @@
       "sourceType": "github",
       "skillPath": "config/skills/langchain-fundamentals/SKILL.md",
       "computedHash": "766050497c9a8bde7a8df17cb8c00291e0fd4a62662d735c628b2bb6725a1002"
+    },
+    "task-generator": {
+      "source": "paoloriotino/my-coding-skills",
+      "sourceType": "github",
+      "skillPath": "task-generator/SKILL.md",
+      "computedHash": "a0aecf5354c6e5333faf78dfd94e3d8a8b93132da106e2e3ebddd69c7bfe0e09"
     }
   }
 }

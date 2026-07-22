@@ -2,13 +2,13 @@ import os
 import sys
 import argparse
 
-# Aggiunge la directory corrente al sys.path per consentire importazioni relative
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+# Aggiungi la root del progetto al path per importare correttamente 'backend'
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
 from seed_data import seed_database
-from rag.ingestion import run_ingestion
-from rag.vector_db import query_activities
-from database import SessionLocal, Flight, Hotel, Activity
+from backend.app.rag.ingestion import run_ingestion
+from backend.app.rag.vector_db import query_activities
+from backend.app.database import SessionLocal, Flight, Hotel, Activity
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Inizializza i database relazionale e vettoriale per AI Travel Assistant.")

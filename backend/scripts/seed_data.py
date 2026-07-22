@@ -1,6 +1,10 @@
+import sys
+import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
+
 import datetime
-from database import init_db, SessionLocal, Flight, Hotel, Activity, User
-from services.security import get_password_hash
+from backend.app.database import init_db, SessionLocal, Flight, Hotel, Activity, User
+from backend.app.services.security import get_password_hash
 
 # Lista di 43 destinazioni mondiali con attrazioni reali stile GetYourGuide e cibi tipici
 DESTINATIONS = [

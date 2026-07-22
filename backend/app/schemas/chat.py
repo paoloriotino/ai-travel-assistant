@@ -51,12 +51,40 @@ class DayItinerary(BaseModel):
     activities: List[str] = Field(default_factory=list, description="Lista delle attività e luoghi da visitare.")
 
 
+class NightStay(BaseModel):
+    """Soggiorno in hotel relativo a una notte specifica del viaggio."""
+    night: int = Field(description="Numero progressivo della notte del viaggio.")
+    hotel_summary: str = Field(description="Riepilogo dell'hotel o della sistemazione per quella notte.")
+
+
+class TravelRequirements(BaseModel):
+    """Requisiti di viaggio estratti progressivamente dalla conversazione."""
+    budget_total: Optional[float] = Field(
+        None,
+        description="Budget totale disponibile per il viaggio in EUR.",
+    )
+    destination_country: Optional[str] = Field(
+        None,
+        description="Nazione o area geografica di interesse.",
+    )
+    preferred_activities: List[str] = Field(
+        default_factory=list,
+        description="Preferenze sulle attività espresse dall'utente (cultura, relax, nightlife, ecc.).",
+    )
+    travel_month: Optional[str] = Field(
+        None,
+        description="Periodo di viaggio espresso come mese o finestra temporale.",
+    )
+
+
 class StructuredItinerary(BaseModel):
     """Dettagli strutturati dell'itinerario o proposta di viaggio."""
     destination: str = Field(description="Città o paese di destinazione.")
     duration_days: Optional[int] = Field(None, description="Durata del soggiorno in giorni.")
-    flight_summary: Optional[str] = Field(None, description="Sintesi del volo consigliato o selezionato.")
+    flight_outbound_summary: Optional[str] = Field(None, description="Sintesi del volo di andata selezionato o consigliato.")
+    flight_return_summary: Optional[str] = Field(None, description="Sintesi del volo di ritorno selezionato o consigliato.")
     hotel_summary: Optional[str] = Field(None, description="Sintesi dell'hotel consigliato o selezionato.")
+    nightly_stays: List[NightStay] = Field(default_factory=list, description="Lista dei pernottamenti con riepilogo hotel per ogni notte.")
     estimated_total_price: Optional[float] = Field(None, description="Prezzo totale stimato del pacchetto in EUR.")
     daily_plan: List[DayItinerary] = Field(default_factory=list, description="Piano dettagliato giorno per giorno.")
 
@@ -64,6 +92,10 @@ class StructuredItinerary(BaseModel):
 class AgentStructuredResponse(BaseModel):
     """Schema di output strutturato dell'agente di viaggio."""
     reply: str = Field(..., description="La risposta conversazionale principale in formato Markdown per l'utente.")
+    requirements: Optional[TravelRequirements] = Field(
+        None,
+        description="Requisiti utente estratti e aggiornati in modo incrementale durante la conversazione.",
+    )
     itinerary: Optional[StructuredItinerary] = Field(None, description="Dettagli strutturati dell'itinerario, popolati se si propone un piano o dettagli di viaggio.")
     follow_up_questions: List[str] = Field(default_factory=list, description="2-3 risposte o azioni rapide pronte all'uso che L'UTENTE può inviare all'assistente con un click (es. 'Cerca voli per Tokyo', 'Procedi con la prenotazione'). NON inserire domande rivolte all'utente!")
 

@@ -4,6 +4,7 @@ import DashboardView from './components/DashboardView';
 import LoginView from './components/LoginView';
 import RegisterView from './components/RegisterView';
 import { getToken, removeToken, getLoggedUsername } from './services/api';
+import type { Booking } from './types';
 import './App.css';
 
 type ActiveView = 'chat' | 'dashboard';
@@ -12,6 +13,7 @@ export default function App() {
   const [activeView, setActiveView] = useState<ActiveView>('chat');
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [authView, setAuthView] = useState<'login' | 'register'>('login');
+  const [modifyBooking, setModifyBooking] = useState<Booking | null>(null);
 
   useEffect(() => {
     if (getToken()) {
@@ -78,7 +80,14 @@ export default function App() {
       </header>
 
       <main className="app__content">
-        {activeView === 'chat' ? <ChatView /> : <DashboardView />}
+        {activeView === 'chat' ? (
+          <ChatView modifyBooking={modifyBooking} onModifyHandled={() => setModifyBooking(null)} />
+        ) : (
+          <DashboardView onModifyBooking={(b) => {
+            setModifyBooking(b);
+            setActiveView('chat');
+          }} />
+        )}
       </main>
     </div>
   );

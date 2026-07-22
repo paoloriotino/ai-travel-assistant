@@ -11,6 +11,7 @@ from langchain_core.tools import tool
 from langchain_core.runnables import RunnableConfig
 from backend.app.database import SessionLocal, Flight, Hotel, Booking
 from backend.app.rag.vector_db import query_activities
+from backend.app.rag.vector_db import query_activities
 
 
 @tool
@@ -26,16 +27,23 @@ def search_activities(query: str, city: Optional[str] = None, max_price: Optiona
         query: La descrizione in linguaggio naturale di ciò che l'utente cerca.
               Esempi: "esperienze gastronomiche", "avventura nella natura", "attività per famiglie".
         city: Nome opzionale della città per filtrare i risultati (es. "Tokyo", "Paris", "Rome").
+              Se l'utente fornisce una Nazione, sta a TE convertire la Nazione in una o più Città principali da usare per la ricerca.
         max_price: Prezzo massimo opzionale in EUR per filtrare le attività accessibili.
         limit: Numero massimo di risultati da restituire (default: 5).
     """
-    filters = {}
+    conditions = []
     if city:
-        filters["city"] = city
-    if max_price is not None:
-        filters["price"] = {"$lte": max_price}
+        conditions.append({"city": city})
 
-    chroma_filters = filters if filters else None
+    if max_price is not None:
+        conditions.append({"price": {"$lte": max_price}})
+
+    if len(conditions) > 1:
+        chroma_filters = {"$and": conditions}
+    elif len(conditions) == 1:
+        chroma_filters = conditions[0]
+    else:
+        chroma_filters = None
     results = query_activities(query=query, limit=limit, filters=chroma_filters)
 
     if not results:
@@ -75,6 +83,7 @@ def search_flights(
                           Se non specificato, cerca da tutti gli aeroporti.
         arrival_airport: Codice IATA dell'aeroporto di arrivo (es. "HND", "JFK").
                         Se non specificato, cerca verso tutte le destinazioni.
+                        Se l'utente fornisce una Nazione, usa le tue conoscenze per ricavare l'aeroporto di arrivo.
         departure_month: Mese di partenza desiderato (1-12) per filtrare i voli.
         max_price: Prezzo massimo del biglietto in EUR.
         limit: Numero massimo di risultati da restituire (default: 5).
@@ -86,6 +95,7 @@ def search_flights(
             q = q.filter(Flight.departure_airport == departure_airport.upper())
         if arrival_airport:
             q = q.filter(Flight.arrival_airport == arrival_airport.upper())
+        
         if departure_month:
             from sqlalchemy import extract
             q = q.filter(extract("month", Flight.departure_date) == departure_month)
@@ -128,6 +138,7 @@ def search_hotels(
     Args:
         city: Nome della città per cercare gli hotel (es. "Tokyo", "Paris", "Rome").
               Se non specificato, cerca in tutte le città.
+              Se l'utente fornisce una Nazione, usa le tue conoscenze per ricavare la città.
         max_price_per_night: Prezzo massimo per notte in EUR.
         check_in_date: Data di check-in desiderata in formato "YYYY-MM-DD" per verificare
                       la disponibilità. Se non specificata, vengono restituiti tutti gli hotel.
@@ -138,6 +149,7 @@ def search_hotels(
         q = db.query(Hotel)
         if city:
             q = q.filter(Hotel.city.ilike(f"%{city}%"))
+        
         if max_price_per_night is not None:
             q = q.filter(Hotel.price_per_night <= max_price_per_night)
         if check_in_date:
@@ -169,6 +181,7 @@ def search_hotels(
 
 @tool
 def book_trip(
+    destination: str,
     flight_details: str,
     hotel_details: str,
     activity_details: str,
@@ -181,10 +194,11 @@ def book_trip(
     ATTENZIONE: Questo strumento esegue una prenotazione effettiva e un addebito.
     Usa questo strumento SOLO quando l'utente ha confermato esplicitamente di voler
     procedere con la prenotazione e hai raccolto tutti i dettagli necessari
-    (volo, hotel, attività e nome del viaggiatore).
+    (destinazione, volo, hotel, attività e nome del viaggiatore).
     NON chiamare questo tool in fase esplorativa o di ricerca.
 
     Args:
+        destination: Il nome della città di destinazione (es. "Tokyo", "Parigi").
         flight_details: Riepilogo completo del volo selezionato (es. "FCO → HND, 01/08/2026, €850").
         hotel_details: Riepilogo completo dell'hotel selezionato (es. "Shinjuku Park Hotel, 14 notti, €120/notte").
         activity_details: Riepilogo delle attività selezionate (es. "Tour Shibuya €60, Lezione Samurai €85").
@@ -202,6 +216,7 @@ def book_trip(
             status="confirmed",
             total_price=total_estimated_price,
             details_json=json.dumps({
+                "destination": destination,
                 "flight": flight_details,
                 "hotel": hotel_details,
                 "activities": activity_details,
@@ -225,5 +240,71 @@ def book_trip(
     except Exception as e:
         db.rollback()
         return f"❌ Errore durante la prenotazione: {str(e)}. Riprova."
+    finally:
+        db.close()
+
+
+@tool
+def modify_booking(
+    booking_id: int,
+    destination: str,
+    flight_details: str,
+    hotel_details: str,
+    activity_details: str,
+    total_estimated_price: float,
+    config: RunnableConfig,
+) -> str:
+    """Modifica un itinerario già prenotato dall'utente con nuovi voli, hotel o attività.
+
+    ATTENZIONE: Questo strumento esegue una modifica effettiva a una prenotazione.
+    Usa questo strumento SOLO quando l'utente ti ha chiesto di modificare una specifica 
+    prenotazione (fornendoti il booking_id) e ha confermato le nuove opzioni.
+
+    Args:
+        booking_id: L'ID numerico della prenotazione da modificare.
+        destination: Il nome della città di destinazione aggiornata.
+        flight_details: Il nuovo riepilogo del volo.
+        hotel_details: Il nuovo riepilogo dell'hotel.
+        activity_details: Le nuove attività selezionate.
+        total_estimated_price: Il nuovo prezzo totale stimato in EUR.
+    """
+    import json
+    user_id = config.get("metadata", {}).get("user_id", 1) if config else 1
+    db = SessionLocal()
+    try:
+        booking = db.query(Booking).filter(Booking.id == booking_id, Booking.user_id == user_id).first()
+        if not booking:
+            return f"❌ Errore: Prenotazione #{booking_id} non trovata per l'utente corrente."
+            
+        if booking.status == "cancelled":
+            return f"❌ Errore: La prenotazione #{booking_id} è stata annullata e non può essere modificata."
+
+        # Recuperiamo il nome del viaggiatore originario
+        old_details = json.loads(booking.details_json) if booking.details_json else {}
+        traveler_name = old_details.get("traveler", "Ospite")
+
+        booking.total_price = total_estimated_price
+        booking.details_json = json.dumps({
+            "destination": destination,
+            "flight": flight_details,
+            "hotel": hotel_details,
+            "activities": activity_details,
+            "traveler": traveler_name,
+        }, ensure_ascii=False)
+        
+        db.commit()
+
+        return (
+            f"✅ Prenotazione #{booking_id} modificata con successo!\n\n"
+            f"📋 Nuovo Riepilogo:\n"
+            f"  👤 Viaggiatore: {traveler_name}\n"
+            f"  ✈️ Volo: {flight_details}\n"
+            f"  🏨 Hotel: {hotel_details}\n"
+            f"  🎯 Attività: {activity_details}\n"
+            f"  💰 Nuovo Totale: €{total_estimated_price:.2f}"
+        )
+    except Exception as e:
+        db.rollback()
+        return f"❌ Errore durante la modifica della prenotazione: {str(e)}. Riprova."
     finally:
         db.close()

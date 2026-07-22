@@ -25,6 +25,11 @@ function statusLabel(status: string): string {
 
 /** Estrarre il titolo 'Viaggio a Destinazione' dai dettagli della prenotazione */
 function getTripTitle(booking: Booking): string {
+  if (booking.details.destination) {
+    return `Viaggio a ${booking.details.destination}`;
+  }
+
+  // Fallback per vecchie prenotazioni senza "destination"
   const detailsStr = `${booking.details.flight || ''} ${booking.details.hotel || ''} ${booking.details.activities || ''}`.toLowerCase();
   
   const destMap: Record<string, string> = {
@@ -82,7 +87,11 @@ function getTripTitle(booking: Booking): string {
   return `Viaggio #${booking.id}`;
 }
 
-export default function DashboardView() {
+interface DashboardViewProps {
+  onModifyBooking?: (booking: Booking) => void;
+}
+
+export default function DashboardView({ onModifyBooking }: DashboardViewProps) {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -197,13 +206,25 @@ export default function DashboardView() {
                   <span className="dashboard__price-value">€{booking.total_price.toFixed(2)}</span>
                 </div>
                 {booking.status !== 'cancelled' && (
-                  <button
-                    className="dashboard__cancel-btn"
-                    onClick={() => handleCancelBooking(booking.id)}
-                    title="Annulla prenotazione"
-                  >
-                    Annulla
-                  </button>
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    {onModifyBooking && (
+                      <button
+                        className="dashboard__cancel-btn"
+                        style={{ backgroundColor: 'var(--color-obsidian)', color: 'var(--color-parchment)', borderColor: 'var(--color-mist)' }}
+                        onClick={() => onModifyBooking(booking)}
+                        title="Modifica prenotazione"
+                      >
+                        Modifica
+                      </button>
+                    )}
+                    <button
+                      className="dashboard__cancel-btn"
+                      onClick={() => handleCancelBooking(booking.id)}
+                      title="Annulla prenotazione"
+                    >
+                      Annulla
+                    </button>
+                  </div>
                 )}
               </div>
             </div>

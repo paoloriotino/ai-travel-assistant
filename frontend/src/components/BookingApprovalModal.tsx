@@ -24,13 +24,14 @@ export default function BookingApprovalModal({
 }: BookingApprovalModalProps) {
   const args = interruptInfo.tool_args;
   const totalPrice = args.total_estimated_price as number | undefined;
+  const isModification = interruptInfo.tool_name === 'modify_booking';
 
   return (
-    <div className="booking-modal__overlay" role="dialog" aria-modal="true" aria-label="Conferma prenotazione">
+    <div className="booking-modal__overlay" role="dialog" aria-modal="true" aria-label={isModification ? "Conferma modifica" : "Conferma prenotazione"}>
       <div className="booking-modal__card">
         <div className="booking-modal__header">
           <span className="booking-modal__icon">✈️</span>
-          <h2 className="booking-modal__title">Conferma prenotazione</h2>
+          <h2 className="booking-modal__title">{isModification ? "Conferma modifica" : "Conferma prenotazione"}</h2>
         </div>
 
         <div className="booking-modal__summary">
@@ -66,7 +67,7 @@ export default function BookingApprovalModal({
             onClick={onApprove}
             disabled={isLoading}
           >
-            {isLoading ? 'Confermo...' : 'Conferma prenotazione'}
+            {isLoading ? 'Attendere...' : (isModification ? 'Conferma modifica' : 'Conferma prenotazione')}
           </button>
         </div>
       </div>

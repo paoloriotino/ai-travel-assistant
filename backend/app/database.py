@@ -4,8 +4,9 @@ from sqlalchemy.orm import declarative_base, sessionmaker, relationship
 
 # Determinazione dinamica del percorso del database SQLite
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DATABASE_PATH = os.path.join(BASE_DIR, "travel_assistant.db")
-DATABASE_URL = f"sqlite:///{DATABASE_PATH}"
+DB_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'db')
+os.makedirs(DB_DIR, exist_ok=True)
+DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite:///{os.path.join(DB_DIR, 'travel_assistant.db')}")
 
 # Configurazione del database engine
 # connect_args={"check_same_thread": False} è necessario per SQLite in contesti multi-thread
